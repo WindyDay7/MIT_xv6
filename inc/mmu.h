@@ -20,7 +20,7 @@
 // |      Index     |      Index     |                     |
 // +----------------+----------------+---------------------+
 //  \--- PDX(la) --/ \--- PTX(la) --/ \---- PGOFF(la) ----/
-//  \---------- PGNUM(la) ----------/
+//  \---------- PGNUM(l/a) ----------/
 //
 // The PDX, PTX, PGOFF, and PGNUM macros decompose linear addresses as shown.
 // To construct a linear address la from PDX(la), PTX(la), and PGOFF(la),
@@ -30,11 +30,14 @@
 #define PGNUM(la)	(((uintptr_t) (la)) >> PTXSHIFT)
 
 // page directory index
+// 获得页目录的索引
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x3FF)
 
+// 获取页表的索引
 // page table index
 #define PTX(la)		((((uintptr_t) (la)) >> PTXSHIFT) & 0x3FF)
 
+// 页表内偏移
 // offset in page
 #define PGOFF(la)	(((uintptr_t) (la)) & 0xFFF)
 
@@ -47,9 +50,11 @@
 
 #define PGSIZE		4096		// bytes mapped by a page
 #define PGSHIFT		12		// log2(PGSIZE)
+// 一页的大小是 4KB
 
 #define PTSIZE		(PGSIZE*NPTENTRIES) // bytes mapped by a page directory entry
 #define PTSHIFT		22		// log2(PTSIZE)
+// 一个页表的大小是 4MB, 在页表内的偏移是 22位
 
 #define PTXSHIFT	12		// offset of PTX in a linear address
 #define PDXSHIFT	22		// offset of PDX in a linear address
@@ -136,6 +141,7 @@
 /*
  * Macros to build GDT entries in assembly.
  */
+
 #define SEG_NULL						\
 	.word 0, 0;						\
 	.byte 0, 0, 0, 0

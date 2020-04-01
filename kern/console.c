@@ -22,8 +22,12 @@ delay(void)
 }
 
 /***** Serial I/O code *****/
-
+// 串口的地址, 注意 x86 的 I/O 编址是独立编址
+/*03F8-03FF ----	serial port (8250,8251,16450,16550,16550A,etc.)
+		same as 02E8,02F8 and 03E8
+		*/
 #define COM1		0x3F8
+// serial port, transmitter holding register(发送保持寄存器), which contains the character to be sent.
 
 #define COM_RX		0	// In:	Receive buffer (DLAB=0)
 #define COM_TX		0	// Out: Transmit buffer (DLAB=0)
@@ -47,14 +51,19 @@ delay(void)
 
 static bool serial_exists;
 
-static int
-serial_proc_data(void)
+// 返回从 COM1 端口读入的数据
+// COM_LSR 寄存器的
+// bit 0 = 1 表示 data ready. a complete incoming character has been received and sent to the receiver buffer register.
+static 
+int serial_proc_data(void)
 {
 	if (!(inb(COM1+COM_LSR) & COM_LSR_DATA))
 		return -1;
 	return inb(COM1+COM_RX);
 }
 
+
+// 将读入的数据放入输入串口
 void
 serial_intr(void)
 {
@@ -62,23 +71,25 @@ serial_intr(void)
 		cons_intr(serial_proc_data);
 }
 
+// 将输出放入输出串口
 static void
 serial_putc(int c)
 {
 	int i;
 
-	for (i = 0;
-	     !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800;
-	     i++)
+	for (i = 0; !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i++)
 		delay();
 
 	outb(COM1 + COM_TX, c);
 }
 
+// 初始化串行端口
 static void
 serial_init(void)
 {
 	// Turn off the FIFO
+	
+	// 将 FIFO 控制寄存器设置为 0
 	outb(COM1+COM_FCR, 0);
 
 	// Set speed; requires DLAB latch
@@ -96,7 +107,9 @@ serial_init(void)
 
 	// Clear any preexisting overrun indications and interrupts
 	// Serial port doesn't exist if COM_LSR returns 0xFF
+	// 串行端口不存在， 如果 COM_LSR 的值为 0xFF
 	serial_exists = (inb(COM1+COM_LSR) != 0xFF);
+	// 清除描述与中断
 	(void) inb(COM1+COM_IIR);
 	(void) inb(COM1+COM_RX);
 
@@ -107,7 +120,7 @@ serial_init(void)
 /***** Parallel port output code *****/
 // For information on PC parallel port programming, see the class References
 // page.
-
+// 串口并行化
 static void
 lpt_putc(int c)
 {
@@ -125,17 +138,25 @@ lpt_putc(int c)
 
 /***** Text-mode CGA/VGA display output *****/
 
+/* 
+ * 获取显存第一个位置的指针
+ * 获取当前光标位置
+ */
 static unsigned addr_6845;
+// 控制台的输出地址
 static uint16_t *crt_buf;
+// 控制台的输出
 static uint16_t crt_pos;
+// 光标的位置, 输出缓冲字符的个数
 
 static void
 cga_init(void)
 {
 	volatile uint16_t *cp;
 	uint16_t was;
-	unsigned pos;
 
+	unsigned pos;
+	// 这个 cp 也是控制台的输出地址, 相当于一个输出的缓冲区
 	cp = (uint16_t*) (KERNBASE + CGA_BUF);
 	was = *cp;
 	*cp = (uint16_t) 0xA55A;
@@ -147,6 +168,7 @@ cga_init(void)
 		addr_6845 = CGA_BASE;
 	}
 
+	// 提取出光标的位置
 	/* Extract cursor location */
 	outb(addr_6845, 14);
 	pos = inb(addr_6845 + 1) << 8;
@@ -158,15 +180,17 @@ cga_init(void)
 }
 
 
-
+// 从光标处输出一个字符
 static void
 cga_putc(int c)
 {
 	// if no attribute given, then use black on white
 	if (!(c & ~0xFF))
 		c |= 0x0700;
+	// 改变输出背景颜色
 
 	switch (c & 0xff) {
+		// 往回退一格子
 	case '\b':
 		if (crt_pos > 0) {
 			crt_pos--;
@@ -177,9 +201,11 @@ cga_putc(int c)
 		crt_pos += CRT_COLS;
 		/* fallthru */
 	case '\r':
+	// 回车
 		crt_pos -= (crt_pos % CRT_COLS);
 		break;
 	case '\t':
+	// 水平制表符
 		cons_putc(' ');
 		cons_putc(' ');
 		cons_putc(' ');
@@ -193,14 +219,18 @@ cga_putc(int c)
 
 	// What is the purpose of this?
 	if (crt_pos >= CRT_SIZE) {
+		// 位置超过了屏幕大小
 		int i;
-
 		memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
+		// crt_buf + CRT_COLS 表示添加一行的数目, CRT_COLS 表示的是列的个数
+		// 将所有的行往前移动一行
+		// 下面是将最后一行换成空格, 黑色的底
 		for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i++)
 			crt_buf[i] = 0x0700 | ' ';
 		crt_pos -= CRT_COLS;
 	}
 
+	// 移动光标
 	/* move that little blinky thing */
 	outb(addr_6845, 14);
 	outb(addr_6845 + 1, crt_pos >> 8);
@@ -318,14 +348,16 @@ kbd_proc_data(void)
 	int c;
 	uint8_t stat, data;
 	static uint32_t shift;
-
+	// 得到键盘控制器的状态
 	stat = inb(KBSTATP);
+	// 如果键盘控制器的数据在缓冲区
 	if ((stat & KBS_DIB) == 0)
 		return -1;
 	// Ignore data from mouse.
 	if (stat & KBS_TERR)
 		return -1;
 
+	// 从键盘数据寄存器读取数据
 	data = inb(KBDATAP);
 
 	if (data == 0xE0) {
@@ -364,6 +396,7 @@ kbd_proc_data(void)
 	return c;
 }
 
+// 将键盘的输入放入缓冲区
 void
 kbd_intr(void)
 {
@@ -381,17 +414,22 @@ kbd_init(void)
 // Here we manage the console input buffer,
 // where we stash characters received from the keyboard or serial port
 // whenever the corresponding interrupt occurs.
-
+// 缓冲区结构体
+// 当有对应的中断发生时， 将串行端口或者键盘输入送入缓冲区
 #define CONSBUFSIZE 512
 
 static struct {
 	uint8_t buf[CONSBUFSIZE];
+	// 大小是 512 字节
 	uint32_t rpos;
+	// 读位置
 	uint32_t wpos;
+	// 应该是装入的字符的个数, 写入的位置
 } cons;
 
-// called by device interrupt routines to feed input characters
-// into the circular console input buffer.
+// called by device interrupt routines to feed input characters into the circular console input buffer.
+// 将输入字符放入缓冲区
+// 设备中断是指, 比如说正在运行其他程序, 键盘开始输入, 需要中断其他程序
 static void
 cons_intr(int (*proc)(void))
 {
@@ -401,6 +439,7 @@ cons_intr(int (*proc)(void))
 		if (c == 0)
 			continue;
 		cons.buf[cons.wpos++] = c;
+		// 如果缓冲区满了
 		if (cons.wpos == CONSBUFSIZE)
 			cons.wpos = 0;
 	}
@@ -432,8 +471,11 @@ cons_getc(void)
 static void
 cons_putc(int c)
 {
+	// 将输出放入输出串口
 	serial_putc(c);
+	// 串口并行化
 	lpt_putc(c);
+	// 从光标处输出一个字符
 	cga_putc(c);
 }
 
@@ -451,7 +493,7 @@ cons_init(void)
 
 
 // `High'-level console I/O.  Used by readline and cprintf.
-
+// 向控制台输出一个字符
 void
 cputchar(int c)
 {

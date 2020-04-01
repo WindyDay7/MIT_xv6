@@ -2,6 +2,7 @@
 #include <inc/memlayout.h>
 
 pte_t entry_pgtable[NPTENTRIES];
+// 页表, 表示的是从  0x00000000 到 0x00400000 这 4MB 物理内存对应的页表
 
 // The entry.S page directory maps the first 4MB of physical memory
 // starting at virtual address KERNBASE (that is, it maps virtual
@@ -17,18 +18,19 @@ pte_t entry_pgtable[NPTENTRIES];
 // related to linking and static initializers, we use "x + PTE_P"
 // here, rather than the more standard "x | PTE_P".  Everywhere else
 // you should use "|" to combine flags.
+// 必须是页表对其的
 __attribute__((__aligned__(PGSIZE)))
 pde_t entry_pgdir[NPDENTRIES] = {
 	// Map VA's [0, 4MB) to PA's [0, 4MB)
-	[0]
-		= ((uintptr_t)entry_pgtable - KERNBASE) + PTE_P,
+	[0] = ((uintptr_t)entry_pgtable - KERNBASE) + PTE_P,
 	// Map VA's [KERNBASE, KERNBASE+4MB) to PA's [0, 4MB)
-	[KERNBASE>>PDXSHIFT]
-		= ((uintptr_t)entry_pgtable - KERNBASE) + PTE_P + PTE_W
+	[KERNBASE>>PDXSHIFT] = ((uintptr_t)entry_pgtable - KERNBASE) + PTE_P + PTE_W
+	// KERNBASE>>PDXSHIFT是得到页目录号, 该页目录号对应的页表也是 entry_ptable这个页表
+	// 所以, 页目录号为 0, 与页目录号为 3C00 对应的页表都是 entry_pgdir, 最后是加上写使能, 与页表中的存在标志
 };
 
-// Entry 0 of the page table maps to physical page 0, entry 1 to
-// physical page 1, etc.
+// Entry 0 of the page table maps to physical page 0, entry 1 tophysical page 1, etc.
+// 页表的项到物理页的地址
 __attribute__((__aligned__(PGSIZE)))
 pte_t entry_pgtable[NPTENTRIES] = {
 	0x000000 | PTE_P | PTE_W,
