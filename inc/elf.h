@@ -28,7 +28,7 @@ struct Elf {
 };
 
 // 对于可执行文件而言
-struct Proghdr {			// 段的头表
+struct Proghdr {			// 描述一个段的结构
 	uint32_t p_type;
 	uint32_t p_offset;		// 段相对于ELF文件开头的偏移
 	uint32_t p_va;			// 虚拟地址

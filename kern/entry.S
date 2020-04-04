@@ -58,6 +58,7 @@ entry:
 	# Load the physical address of entry_pgdir into cr3.  entry_pgdir
 	# is defined in entrypgdir.c.
 	movl	$(RELOC(entry_pgdir)), %eax
+	# 注意此时页目录本身就在物理内存中
 	# 需要注意的是这里, entry_pgdir 只有虚拟地址, 并且他不在 boot loader里面, 而是在内核里面, 对应的虚拟地址是在 0xf0000000 之后
 	movl	%eax, %cr3
 	# 将 页目录的物理地址存入 cr3寄存器

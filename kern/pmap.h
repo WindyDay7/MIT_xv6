@@ -12,8 +12,10 @@
 extern char bootstacktop[], bootstack[];
 
 extern struct PageInfo *pages;
+// 物理内存的大小有多少个 page
 extern size_t npages;
 
+// 内核的初始页面目录
 extern pde_t *kern_pgdir;
 
 
@@ -22,6 +24,7 @@ extern pde_t *kern_pgdir;
  * and returns the corresponding physical address.  It panics if you pass it a
  * non-kernel virtual address.
  */
+// 就是 0xf0000000 往上的 256MB 的内存对应的物理地址
 #define PADDR(kva) _paddr(__FILE__, __LINE__, kva)
 
 static inline physaddr_t
@@ -62,6 +65,9 @@ void	page_decref(struct PageInfo *pp);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
 
+// 注意 pages 的声明, struct PageInfo *pages; 是一个链表, pages 是链表头部
+// 所以 pp 是链表中的一个数据, 其实就是页表项号, 所以左移 12 位得到物理地址,
+// 所以 pp - pages 是物理页号
 static inline physaddr_t
 page2pa(struct PageInfo *pp)
 {

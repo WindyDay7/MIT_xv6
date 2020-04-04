@@ -60,6 +60,7 @@
 #define PDXSHIFT	22		// offset of PDX in a linear address
 
 // Page table/directory entry flags.
+// 页表/页目录 中页表项的的flag, 就是控制符号
 #define PTE_P		0x001	// Present
 #define PTE_W		0x002	// Writeable
 #define PTE_U		0x004	// User
@@ -78,9 +79,11 @@
 #define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)
 
 // Address in page table or page directory entry
+// 页表或者页目录的页表项/目录项
 #define PTE_ADDR(pte)	((physaddr_t) (pte) & ~0xFFF)
 
 // Control Register flags
+// 页表的目录项中除了物理地址还有控制 flag
 #define CR0_PE		0x00000001	// Protection Enable
 #define CR0_MP		0x00000002	// Monitor coProcessor
 #define CR0_EM		0x00000004	// Emulation

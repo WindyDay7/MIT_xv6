@@ -107,10 +107,11 @@
  * User read-only mappings! Anything below here til UTOP are readonly to user.
  * They are global pages mapped in at env allocation time.
  */
-
+// 页表对用户来说是只读的, 只有用内核程序才可以修改页表
 // User read-only virtual page table (see 'uvpt' below)
 #define UVPT		(ULIM - PTSIZE)
-// Read-only copies of the Page structures
+// Read-only copies of the Page structures, 物理页的结构
+// 可以使用 page2pa() in kern/pmap.h. 找到struct PageInfo * 对应的物理地址
 #define UPAGES		(UVPT - PTSIZE)
 // Read-only copies of the global env structures
 #define UENVS		(UPAGES - PTSIZE)
@@ -136,6 +137,7 @@
 // (should not conflict with other temporary page mappings)
 #define PFTEMP		(UTEMP + PTSIZE - PGSIZE)
 // The location of the user-level STABS data structure
+// 用户符号表的位置, 对于编译来说是可选的
 #define USTABDATA	(PTSIZE / 2)
 
 #ifndef __ASSEMBLER__
@@ -172,15 +174,16 @@ extern volatile pde_t uvpd[];     // VA of current page directory
  * You can map a struct PageInfo * to the corresponding physical address
  * with page2pa() in kern/pmap.h.
  */
+// 描述了一个物理页的状态
 struct PageInfo {
 	// Next page on the free list.
 	struct PageInfo *pp_link;
 
-	// pp_ref is the count of pointers (usually in page table entries)
+	// pp_ref is the count of pointers (usually in page table entries) 
 	// to this page, for pages allocated using page_alloc.
 	// Pages allocated at boot time using pmap.c's
 	// boot_alloc do not have valid reference count fields.
-
+	// 指向这一页的指针的个数, 也就是
 	uint16_t pp_ref;
 };
 

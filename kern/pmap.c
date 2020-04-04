@@ -94,16 +94,21 @@ boot_alloc(uint32_t n)
 	// to any kernel code or global variables.
 	if (!nextfree) {
 		extern char end[];
+		// 将地址 end 向上以页面大小对齐
 		nextfree = ROUNDUP((char *) end, PGSIZE);
 	}
-
 	// Allocate a chunk large enough to hold 'n' bytes, then update
-	// nextfree.  Make sure nextfree is kept aligned
-	// to a multiple of PGSIZE.
+	// nextfree.  Make sure nextfree is kept aligned to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-
-	return NULL;
+	// 这里的 free memory 是在 KERNBASE 上面的虚拟地址空间中的 free memory
+	result = nextfree;
+	if(n > 0)
+	{
+		nextfree = ROUNDUP(result+n, PGSIZE);
+	}
+	cprintf("boot_alloc memory at %x, next memory allocate at %x\n", result, nextfree);
+	return result;
 }
 
 // Set up a two-level page table:
@@ -115,6 +120,7 @@ boot_alloc(uint32_t n)
 //
 // From UTOP to ULIM, the user is allowed to read but not write.
 // Above ULIM the user cannot read or write.
+// 从 UTOP 到 ULIM 部分是页表部分, 对用户来说是只可读的, ULIM 往上是内核程序段, 用户也不可以读
 void
 mem_init(void)
 {
@@ -129,6 +135,7 @@ mem_init(void)
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
+	// 分配一个物理页大小的虚拟空间, 对于页目录来说, 这里使用 boot_alloc
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
 	memset(kern_pgdir, 0, PGSIZE);
 
@@ -139,8 +146,13 @@ mem_init(void)
 	// following line.)
 
 	// Permissions: kernel R, user R
+	// UVPT 是页表的虚拟地址, 页表的虚拟地址就是页目录的
+	// 内核的页表的页表项的内容, PADDR是获取物理地址, 页表的第一项就是页目录
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
+	// struct PageInfo *pages 记录了物理页的状态的数组
+	// npages, 物理内存有多少个页大小
+	// 对于物理内存为 npages 就存储 npages 个结构体在 pages中
 	//////////////////////////////////////////////////////////////////////
 	// Allocate an array of npages 'struct PageInfo's and store it in 'pages'.
 	// The kernel uses this array to keep track of physical pages: for
@@ -148,8 +160,9 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-
-
+	// 物理页描述符的数组, 
+	pages = (struct PageInfo*)boot_alloc(sizeof(struct PageInfo) * npages);
+	memset(pages, 0, sizeof(struct PageInfo) * npages);
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -251,11 +264,31 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
+	// IO物理地址段 部分已经被分配了, 所以已经被占用了
+	size_t io_hole_start_page = (size_t)IOPHYSMEM / PGSIZE;
+	// If n==0, returns the address of the next free page without allocating anything.
+	// 使用 boot_alloc(0) 找出未被分配的物理地址, 就是内核分配的末尾
+	size_t kernel_end_page = PADDR(boot_alloc(0)) / PGSIZE;
+
 	size_t i;
 	for (i = 0; i < npages; i++) {
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
+		if(i == 0){
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+		}
+		if(io_hole_start_page <= i && i < kernel_end_page)
+		{
+			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
+		}
+		else
+		{
+			pages[i].pp_ref = 0;
+			// 这一步是形成空闲链表
+			pages[i].pp_link = page_free_list;
+			page_free_list = &pages[i];
+		}
+		
 	}
 }
 
@@ -275,7 +308,19 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-	return 0;
+	struct PageInfo *new_alloc = page_free_list;
+	if(new_alloc == NULL)
+	{
+		// 分配失败, 没有空闲的空间
+		cprintf("page_alloc: out of free memory\n");
+	}
+	page_free_list = new_alloc->pp_link;
+	new_alloc->pp_link = NULL;
+	if(alloc_flags & ALLOC_ZERO)
+	{
+		memset(page2kva(new_alloc), 0, sizeof(struct PageInfo));
+	}
+	return new_alloc;
 }
 
 //
@@ -288,6 +333,16 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if(pp->pp_ref == 0 && pp->pp_link == NULL)
+	{
+		pp->pp_link = page_free_list;
+		page_free_list = pp;
+	}
+	else
+	{
+		panic("page_free: pp->pp_ref is nonzero or pp->pp_link is not NULL\n");
+	}
+	
 }
 
 //

@@ -32,7 +32,7 @@
 #define SECTSIZE	512
 // 一个扇区的大小
 #define ELFHDR		((struct Elf *) 0x10000) // scratch space
-// 定义了一个 Elf 类型的指针, 这个指针的地址为 0x10000
+// 定义了一个 Elf头部 类型的指针, 这个指针的地址为 0x10000, 
 
 void readsect(void*, uint32_t);
 void readseg(uint32_t, uint32_t, uint32_t);
@@ -45,7 +45,7 @@ bootmain(void)
 	// read 1st page off disk, 一页的大小是 4KB
 	// 从内核的开头中读取一页到 0x10000 地址处
 	readseg((uint32_t) ELFHDR, SECTSIZE*8, 0);
-	// 这一页就是内核文件的 ELF, 因为内核是可执行文件
+	// 这一页就是内核文件的 ELF头部, 描述了内核文件的结构, 因为内核是可执行文件
 
 	// is this a valid ELF?
 	// ELF 头部的魔数不正确
@@ -54,7 +54,7 @@ bootmain(void)
 
 	// load each program segment (ignores ph flags)
 	ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
-	// ph 是程序头部表的位置
+	// ph 是程序头部表(segment 描述表, 包含多个 Segment 头部信息)的位置
 	eph = ph + ELFHDR->e_phnum;
 	// ELFHDR->e_phnum 表示程序头部表表项的个数, 即程序 segment 的个数 
 	// 所以 eph 就是程序头部表的结尾
