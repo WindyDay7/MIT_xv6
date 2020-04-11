@@ -74,8 +74,8 @@ page2pa(struct PageInfo *pp)
 	return (pp - pages) << PGSHIFT;
 }
 
-static inline struct PageInfo*
-pa2page(physaddr_t pa)
+// 根据物理地址得到 pages 的索引, pages 是物理页描述数组
+static inline struct PageInfo* pa2page(physaddr_t pa)
 {
 	if (PGNUM(pa) >= npages)
 		panic("pa2page called with invalid pa");

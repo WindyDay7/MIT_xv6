@@ -27,6 +27,7 @@
 // use PGADDR(PDX(la), PTX(la), PGOFF(la)).
 
 // page number field of address
+// 获得物理物理内存中的物理页号 PTXSHIFT = 12, 表示页面大小
 #define PGNUM(la)	(((uintptr_t) (la)) >> PTXSHIFT)
 
 // page directory index
@@ -79,7 +80,7 @@
 #define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)
 
 // Address in page table or page directory entry
-// 页表或者页目录的页表项/目录项
+// 页表或者页目录的页表项/目录项, 其中 0xFFF 表示页表的大小
 #define PTE_ADDR(pte)	((physaddr_t) (pte) & ~0xFFF)
 
 // Control Register flags

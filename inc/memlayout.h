@@ -142,6 +142,7 @@
 
 #ifndef __ASSEMBLER__
 
+// 表示页表的页表项的偏移, page_table_entry
 typedef uint32_t pte_t;
 typedef uint32_t pde_t;
 
