@@ -378,28 +378,33 @@ page_decref(struct PageInfo* pp)
 // Hint 3: look at inc/mmu.h for useful macros that manipulate page
 // table and page directory entries.
 //
-pte_t *
-pgdir_walk(pde_t *pgdir, const void *va, int create)
+// 对于一个虚拟地址找到页表中对应页表项地址, 页表项的内容就是
+pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 {
 	// Fill this function in
 	pte_t *result;
+	// 如果页目录对应的目录项内容为空, 表示页表中该页还未创造
 	if (pgdir[PDX(va)] == (pte_t)NULL) {
+		// create == 0, return NULL
 		if (create == 0) {
 			return NULL;
 		}
 		else {
+			// 新建一页, 在物理内存中新分配一页
 			struct PageInfo *temp = page_alloc(ALLOC_ZERO);
 			if(temp == NULL) {
 				return NULL;
 			}
 			else {
 				temp->pp_ref += 1;
+				// 新分配的一页是页表, 下面设置页目录 目录项的内容
 				pgdir[PDX(va)] = page2pa(temp) | PTE_P | PTE_W |PTE_U;
 				return page2kva(temp);
 			}
 		}        
 	}
 	else {
+		// PTE_ADDR(pgdir[PDX(va)])这一步是根据页表项的内容得到物理地址, 因为页表项的内容存的就是物理地址
 		result = page2kva(pa2page(PTE_ADDR(pgdir[PDX(va)])));
 	}
 	return NULL;
@@ -420,6 +425,18 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
+	uintptr_t temp_va = va;
+	while (temp_va < va+size) {
+		pte_t *pte = pgdir_walk(pgdir, (void *)temp_va, 1); //获取当前va对应的页表的页表项地址
+		if(pte == NULL) {
+			panic("boot_map_region(): out of memory\n");
+		}
+		// 构造页表的内容
+		*pte = pa | PTE_P | perm; //修改在页表中页表项中的数据, 存储的是物理地址
+		pa += PGSIZE;
+		temp_va += PGSIZE;
+	}
+	
 }
 
 //
@@ -447,10 +464,27 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 // Hint: The TA solution is implemented using pgdir_walk, page_remove,
 // and page2pa.
 //
-int
-page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
+// 向页表中插入一页, 本质是将一个物理页与虚拟地址对应起来
+int page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
 	// Fill this function in
+	// 查找虚拟地址对应的页表的页表项地址
+	pte_t *temp = pgdir_walk(pgdir, va, 1);
+	if(temp == NULL) {
+		return -E_NO_MEM;
+	}
+	pp->pp_ref += 1;
+	// *temp 是页表项存储的数据, 判断 PTE_P 位是否为 1, 
+	// 为 1表示页表中该页表项已经存储了物理地址, 虚拟地址 va 已经被映射
+	if((*temp) & PTE_P) {
+		page_remove(pgdir, va); 
+	}
+	// pp - pages 实际是物理页号, 将其转化为物理地址
+	physaddr_t pa = page2pa(pp); 
+	// 更新页表中页表项的数据
+	*temp = pa | perm | PTE_P;    //修改PTE
+	pgdir[PDX(va)] |= perm;
+	
 	return 0;
 }
 
@@ -465,11 +499,27 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 //
 // Hint: the TA solution uses pgdir_walk and pa2page.
 //
+// 返回虚拟地址对应的物理页面, 也就是物理页号
 struct PageInfo *
 page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 {
 	// Fill this function in
-	return NULL;
+	// 注意这里传进来了一个二级指针, 目的是修改原指针
+	pte_t *temp_pte = pgdir_walk(pgdir, va, 0);
+
+	if (temp_pte == NULL) {
+		return NULL;
+	}
+	if (!(*temp_pte) & PTE_P) {
+		return NULL;
+	}
+	// 这里是从页表项的内容中中获取物理地址
+	physaddr_t pa = PTE_ADDR(*temp_pte);
+	struct PageInfo* pp = pa2page(pa);								//物理地址对应的PageInfo结构地址
+	if (pte_store != NULL) {
+		*pte_store = temp_pte;
+	}
+	return pp;
 }
 
 //
@@ -491,6 +541,20 @@ void
 page_remove(pde_t *pgdir, void *va)
 {
 	// Fill this function in
+	// 查找虚拟地址对应的页表项地址
+	pte_t *temp_pte = pgdir_walk(pgdir, va, 0);
+	if(temp_pte == NULL) {
+		return NULL;
+	}
+	// 找出虚拟地址对应的物理页
+	struct PageInfo * pp = page_lookup(pgdir, va, &temp_pte);
+	if(pp == NULL) {
+		return NULL;
+	}
+	page_decref(pp);
+	// 页表项还是存在的, 但是页表项的内容为空
+	*temp_pte = 0;
+	tlb_invalidate(pgdir, va); 
 }
 
 //

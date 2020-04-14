@@ -66,10 +66,9 @@ void	page_decref(struct PageInfo *pp);
 void	tlb_invalidate(pde_t *pgdir, void *va);
 
 // 注意 pages 的声明, struct PageInfo *pages; 是一个链表, pages 是链表头部
-// 所以 pp 是链表中的一个数据, 其实就是页表项号, 所以左移 12 位得到物理地址,
+// 所以 pp 是链表中的一个数据, 其实就是页表项号(是一个地址), 所以左移 12 位得到物理地址,
 // 所以 pp - pages 是物理页号
-static inline physaddr_t
-page2pa(struct PageInfo *pp)
+static inline physaddr_t page2pa(struct PageInfo *pp)
 {
 	return (pp - pages) << PGSHIFT;
 }
@@ -82,8 +81,8 @@ static inline struct PageInfo* pa2page(physaddr_t pa)
 	return &pages[PGNUM(pa)];
 }
 
-static inline void*
-page2kva(struct PageInfo *pp)
+// 先获取物理地址, 然后获取虚拟地址
+static inline void* page2kva(struct PageInfo *pp)
 {
 	return KADDR(page2pa(pp));
 }
