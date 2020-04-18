@@ -103,10 +103,7 @@ boot_alloc(uint32_t n)
 	// LAB 2: Your code here.
 	// 这里的 free memory 是在 KERNBASE 上面的虚拟地址空间中的 free memory
 	result = nextfree;
-	if(n > 0)
-	{
-		nextfree = ROUNDUP(result+n, PGSIZE);
-	}
+	nextfree = ROUNDUP((char *) result+n, PGSIZE);
 	cprintf("boot_alloc memory at %x, next memory allocate at %x\n", result, nextfree);
 	return result;
 }
@@ -146,8 +143,8 @@ mem_init(void)
 	// following line.)
 
 	// Permissions: kernel R, user R
-	// UVPT 是页表的虚拟地址, 页表的虚拟地址就是页目录的
-	// 内核的页表的页表项的内容, PADDR是获取物理地址, 页表的第一项就是页目录
+	// 假设 UVPT 是页目录开头的虚拟地址, 左边得到的应该是页目录的物理地址
+	// 这一步相当于将页目录的虚拟地址 kern_pgdir 固定在 UVPT, 访问UVPT就是访问页目录
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
 	// struct PageInfo *pages 记录了物理页的状态的数组
@@ -185,7 +182,8 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-
+	// 将虚拟地址的  UPAGES 与 pages映射
+	boot_map_region(kern_pgdir, UPAGES, PTSIZE, PADDR(pages), PTE_U);
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -197,7 +195,7 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-
+	boot_map_region(kern_pgdir, KSTACKTOP-KSTKSIZE, KSTKSIZE, PADDR(bootstack), PTE_W);
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
 	// Ie.  the VA range [KERNBASE, 2^32) should map to
@@ -206,7 +204,7 @@ mem_init(void)
 	// we just set up the mapping anyway.
 	// Permissions: kernel RW, user NONE
 	// Your code goes here:
-
+	boot_map_region(kern_pgdir, KERNBASE, 0xffffffff-KERNBASE, 0, PTE_W);
 	// Check that the initial page directory has been set up correctly.
 	check_kern_pgdir();
 
@@ -276,7 +274,7 @@ page_init(void)
 			pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
 		}
-		if(io_hole_start_page <= i && i < kernel_end_page)
+		else if(io_hole_start_page <= i && i < kernel_end_page)
 		{
 			pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
@@ -309,15 +307,15 @@ page_alloc(int alloc_flags)
 {
 	// Fill this function in
 	struct PageInfo *new_alloc = page_free_list;
-	if(new_alloc == NULL)
-	{
+	if(new_alloc == NULL) {
 		// 分配失败, 没有空闲的空间
 		cprintf("page_alloc: out of free memory\n");
+		return NULL;
 	}
+	// new_alloc已经被分配出去了, 所以 page_free_list 是 new_alloc->pp_link 指向的空闲处
 	page_free_list = new_alloc->pp_link;
 	new_alloc->pp_link = NULL;
-	if(alloc_flags & ALLOC_ZERO)
-	{
+	if(alloc_flags & ALLOC_ZERO) {
 		memset(page2kva(new_alloc), 0, sizeof(struct PageInfo));
 	}
 	return new_alloc;
@@ -407,7 +405,7 @@ pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 		// PTE_ADDR(pgdir[PDX(va)])这一步是根据页表项的内容得到物理地址, 因为页表项的内容存的就是物理地址
 		result = page2kva(pa2page(PTE_ADDR(pgdir[PDX(va)])));
 	}
-	return NULL;
+	return result;
 }
 
 //
@@ -421,8 +419,8 @@ pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 // mapped pages.
 //
 // Hint: the TA solution uses pgdir_walk
-static void
-boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
+// 将物理地址与虚拟地址对应起来
+static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
 	uintptr_t temp_va = va;
@@ -436,7 +434,6 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 		pa += PGSIZE;
 		temp_va += PGSIZE;
 	}
-	
 }
 
 //
@@ -537,6 +534,7 @@ page_lookup(pde_t *pgdir, void *va, pte_t **pte_store)
 // Hint: The TA solution is implemented using page_lookup,
 // 	tlb_invalidate, and page_decref.
 //
+// 删除虚拟地址对应的物理页
 void
 page_remove(pde_t *pgdir, void *va)
 {
@@ -544,12 +542,12 @@ page_remove(pde_t *pgdir, void *va)
 	// 查找虚拟地址对应的页表项地址
 	pte_t *temp_pte = pgdir_walk(pgdir, va, 0);
 	if(temp_pte == NULL) {
-		return NULL;
+		return ;
 	}
 	// 找出虚拟地址对应的物理页
 	struct PageInfo * pp = page_lookup(pgdir, va, &temp_pte);
 	if(pp == NULL) {
-		return NULL;
+		return ;
 	}
 	page_decref(pp);
 	// 页表项还是存在的, 但是页表项的内容为空
