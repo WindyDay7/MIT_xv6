@@ -128,7 +128,7 @@ mem_init(void)
 	i386_detect_memory();
 
 	// Remove this line when you're ready to test this function.
-	panic("mem_init: This function is not finished\n");
+	// panic("mem_init: This function is not finished\n");
 
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
@@ -267,26 +267,22 @@ page_init(void)
 	// If n==0, returns the address of the next free page without allocating anything.
 	// 使用 boot_alloc(0) 找出未被分配的物理地址, 就是内核分配的末尾
 	size_t kernel_end_page = PADDR(boot_alloc(0)) / PGSIZE;
-
 	size_t i;
 	for (i = 0; i < npages; i++) {
-		if(i == 0){
+		if(i == 0) {
 			pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
 		}
-		else if(io_hole_start_page <= i && i < kernel_end_page)
-		{
+		else if(io_hole_start_page <= i && i < kernel_end_page) {
 			pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
 		}
-		else
-		{
+		else {
 			pages[i].pp_ref = 0;
 			// 这一步是形成空闲链表
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
-		}
-		
+		}	
 	}
 }
 
@@ -309,14 +305,14 @@ page_alloc(int alloc_flags)
 	struct PageInfo *new_alloc = page_free_list;
 	if(new_alloc == NULL) {
 		// 分配失败, 没有空闲的空间
-		cprintf("page_alloc: out of free memory\n");
+		// cprintf("page_alloc: out of free memory\n");
 		return NULL;
 	}
 	// new_alloc已经被分配出去了, 所以 page_free_list 是 new_alloc->pp_link 指向的空闲处
 	page_free_list = new_alloc->pp_link;
 	new_alloc->pp_link = NULL;
 	if(alloc_flags & ALLOC_ZERO) {
-		memset(page2kva(new_alloc), 0, sizeof(struct PageInfo));
+		memset(page2kva(new_alloc), 0, PGSIZE);
 	}
 	return new_alloc;
 }
@@ -331,14 +327,13 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
-	if(pp->pp_ref == 0 && pp->pp_link == NULL)
-	{
+	if(pp->pp_ref == 0 && pp->pp_link == NULL) {
 		pp->pp_link = page_free_list;
 		page_free_list = pp;
 	}
-	else
-	{
+	else {
 		panic("page_free: pp->pp_ref is nonzero or pp->pp_link is not NULL\n");
+		return ;
 	}
 	
 }
@@ -382,7 +377,7 @@ pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 	// Fill this function in
 	pte_t *result;
 	// 如果页目录对应的目录项内容为空, 表示页表中该页还未创造
-	if (pgdir[PDX(va)] == (pte_t)NULL) {
+	if (!(pgdir[PDX(va)] & PTE_P)) {
 		// create == 0, return NULL
 		if (create == 0) {
 			return NULL;
@@ -397,14 +392,12 @@ pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 				temp->pp_ref += 1;
 				// 新分配的一页是页表, 下面设置页目录 目录项的内容
 				pgdir[PDX(va)] = page2pa(temp) | PTE_P | PTE_W |PTE_U;
-				return page2kva(temp);
 			}
 		}        
 	}
-	else {
 		// PTE_ADDR(pgdir[PDX(va)])这一步是根据页表项的内容得到物理地址, 因为页表项的内容存的就是物理地址
-		result = page2kva(pa2page(PTE_ADDR(pgdir[PDX(va)])));
-	}
+	// result = page2kva(pa2page(PTE_ADDR(pgdir[PDX(va)])));
+	result = (pte_t *)KADDR(PTE_ADDR(pgdir[PDX(va)])) + PTX(va);
 	return result;
 }
 
@@ -423,16 +416,18 @@ pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
-	uintptr_t temp_va = va;
-	while (temp_va < va+size) {
-		pte_t *pte = pgdir_walk(pgdir, (void *)temp_va, 1); //获取当前va对应的页表的页表项地址
-		if(pte == NULL) {
+	size_t pgs = size / PGSIZE;
+	if (size % PGSIZE != 0) {
+		pgs++;
+	}	
+	for (int i = 0; i < pgs; i++) {
+		pte_t *pte = pgdir_walk(pgdir, (void *)va, 1);
+		if (pte == NULL) {
 			panic("boot_map_region(): out of memory\n");
 		}
-		// 构造页表的内容
-		*pte = pa | PTE_P | perm; //修改在页表中页表项中的数据, 存储的是物理地址
+		*pte = pa | PTE_P | perm;
 		pa += PGSIZE;
-		temp_va += PGSIZE;
+		va += PGSIZE;
 	}
 }
 
