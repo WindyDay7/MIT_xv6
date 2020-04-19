@@ -134,6 +134,7 @@ mem_init(void)
 	// create initial page directory.
 	// 分配一个物理页大小的虚拟空间, 对于页目录来说, 这里使用 boot_alloc
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
+	// 初始化页目录
 	memset(kern_pgdir, 0, PGSIZE);
 
 	//////////////////////////////////////////////////////////////////////
@@ -144,7 +145,8 @@ mem_init(void)
 
 	// Permissions: kernel R, user R
 	// 假设 UVPT 是页目录开头的虚拟地址, 左边得到的应该是页目录的物理地址
-	// 这一步相当于将页目录的虚拟地址 kern_pgdir 固定在 UVPT, 访问UVPT就是访问页目录
+	// 这一步相当于将页目录的虚拟地址 kern_pgdir 固定在 UVPT, 访问UVPT就是访问页目录, 
+	// 这一步十分重要, 因为在此之前, boot_alloc 只是在虚拟空间上分配了页目录, 物理内存上并没有页目录,
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
 	// struct PageInfo *pages 记录了物理页的状态的数组
