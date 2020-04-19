@@ -175,10 +175,13 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	// Search within [lline, rline] for the line number stab.
 	// If found, set info->eip_line to the right line number.
 	// If not found, return -1.
-	
 	stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
-    if (lline > rline)
-        return -1;
+	if (lline <= rline) {
+		info->eip_line = stabs[lline].n_desc;
+	} else {
+		return -1;
+	}
+	
     info->eip_line = stabs[lline].n_desc;
 	// Hint:
 	//	There's a particular stabs type used for line numbers.
