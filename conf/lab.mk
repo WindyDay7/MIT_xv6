@@ -1,2 +1,7 @@
+<<<<<<< HEAD
 LAB=3
 PACKAGEDATE=Tue Sep 25 12:21:10 EDT 2018
+=======
+LAB=1
+PACKAGEDATE=Wed Sep 12 14:51:29 EDT 2018
+>>>>>>> lab2

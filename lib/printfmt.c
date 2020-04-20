@@ -1,4 +1,5 @@
 // Stripped-down primitive printf-style formatting routines,
+// 精简的基本printf样式格式化例程
 // used in common by printf, sprintf, fprintf, etc.
 // This code is also used by both the kernel and user programs.
 
@@ -9,8 +10,7 @@
 #include <inc/error.h>
 
 /*
- * Space or zero padding and a field width are supported for the numeric
- * formats only.
+ * Space or zero padding and a field width are supported for the numeric formats only.
  *
  * The special format %e takes an integer error code
  * and prints a string describing the error.
@@ -31,6 +31,7 @@ static const char * const error_string[MAXERROR] =
 /*
  * Print a number (base <= 16) in reverse order,
  * using specified putch function and associated pointer putdat.
+ * 反向输出
  */
 static void
 printnum(void (*putch)(int, void*), void *putdat,
@@ -49,13 +50,19 @@ printnum(void (*putch)(int, void*), void *putdat,
 	putch("0123456789abcdef"[num % base], putdat);
 }
 
-// Get an unsigned int of various possible sizes from a varargs list,
-// depending on the lflag parameter.
+// Get an unsigned int of various possible sizes from a varargs list, depending on the lflag parameter.
+// 从参数列表获取一个该类型的参数变量
 static unsigned long long
 getuint(va_list *ap, int lflag)
 {
 	if (lflag >= 2)
 		return va_arg(*ap, unsigned long long);
+	/*
+	ap -- 这是一个 va_list 类型的对象，存储了有关额外参数和检索状态的信息。
+	该对象应在第一次调用 va_arg 之前通过调用 va_start 进行初始化。
+	type -- 这是一个类型名称。该类型名称是作为扩展自该宏的表达式的类型来使用的。
+	该宏返回下一个额外的参数，是一个类型为 type 的表达式。
+	*/
 	else if (lflag)
 		return va_arg(*ap, unsigned long);
 	else
@@ -82,6 +89,9 @@ void printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...);
 void
 vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 {
+	// putch 是简单的cputchar()，然后对已经输出的字符个数进行统计：
+	// putch 是控制台输出函数
+	// putdat 是输出最后一个字符的指针
 	register const char *p;
 	register int ch, err;
 	unsigned long long num;
@@ -93,17 +103,21 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 			if (ch == '\0')
 				return;
 			putch(ch, putdat);
+			// 将 % 前面的全部输出到控制台
+			// 将 ch 输出到控制台, putdat 是指向记录输出的个数的指针
 		}
 
 		// Process a %-escape sequence
+		// 处理一系列的 % 的过程
 		padc = ' ';
 		width = -1;
 		precision = -1;
 		lflag = 0;
 		altflag = 0;
+		// Alt 的 Flag
 	reswitch:
 		switch (ch = *(unsigned char *) fmt++) {
-
+		
 		// flag to pad on the right
 		case '-':
 			padc = '-';
@@ -152,9 +166,10 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 
 		// long flag (doubled for long long)
 		case 'l':
+			// long 类型flag ++
 			lflag++;
 			goto reswitch;
-
+		// 上面这些都是一些没有意义的标志, 所以需要再读取一个字符标志
 		// character
 		case 'c':
 			putch(va_arg(ap, int), putdat);
@@ -206,9 +221,9 @@ vprintfmt(void (*putch)(int, void*), void *putdat, const char *fmt, va_list ap)
 		// (unsigned) octal
 		case 'o':
 			// Replace this with your code.
-			putch('X', putdat);
-			putch('X', putdat);
-			putch('X', putdat);
+			num = getuint(&ap, lflag);
+			base = 8;
+			goto number;
 			break;
 
 		// pointer
@@ -250,6 +265,8 @@ printfmt(void (*putch)(int, void*), void *putdat, const char *fmt, ...)
 
 	va_start(ap, fmt);
 	vprintfmt(putch, putdat, fmt, ap);
+	// putch 是控制台输出函数
+	// putdat 是输出最后一个字符的指针
 	va_end(ap);
 }
 
@@ -271,11 +288,14 @@ int
 vsnprintf(char *buf, int n, const char *fmt, va_list ap)
 {
 	struct sprintbuf b = {buf, buf+n-1, 0};
+	// 初始化一个字符串输出的一个缓冲区
+	// buf 是缓冲区的头部, buf+n-1 是末尾, 0表示缓冲区字符的个数
 
 	if (buf == NULL || n < 1)
 		return -E_INVAL;
 
 	// print the string to the buffer
+	// 这里的 sprintputch 函数不是输出到控制台, 而是一个缓冲区
 	vprintfmt((void*)sprintputch, &b, fmt, ap);
 
 	// null terminate the buffer

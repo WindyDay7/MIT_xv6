@@ -11,6 +11,18 @@
 #include <kern/env.h>
 #include <kern/trap.h>
 
+// Test the stack backtrace function (lab 1 only)
+
+void
+test_backtrace(int x)
+{
+	cprintf("entering test_backtrace %d\n", x);
+	if (x > 0)
+		test_backtrace(x-1);
+	else
+		mon_backtrace(0, 0, 0);
+	cprintf("leaving test_backtrace %d\n", x);
+}
 
 void
 i386_init(void)
@@ -21,7 +33,7 @@ i386_init(void)
 	// Clear the uninitialized global data (BSS) section of our program.
 	// This ensures that all static/global variables start out zero.
 	memset(edata, 0, end - edata);
-
+	
 	// Initialize the console.
 	// Can't call cprintf until after we do this!
 	cons_init();
@@ -45,6 +57,7 @@ i386_init(void)
 
 	// We only have one user environment for now, so just run it.
 	env_run(&envs[0]);
+
 }
 
 
