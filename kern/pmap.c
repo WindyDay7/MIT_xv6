@@ -578,7 +578,7 @@ page_remove(pde_t *pgdir, void *va)
 		return ;
 	}
 	page_decref(pp);
-	// 页表项还是存在的, 但是页表项的内容为空
+	// 页表项还是存在的, 但是页表项的内容为空, 这样再使用 page_lookup也不会找到对应的物理页
 	*temp_pte = 0;
 	tlb_invalidate(pgdir, va); 
 }

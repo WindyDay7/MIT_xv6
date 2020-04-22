@@ -223,7 +223,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	// 如果 env_free_list 指向 NULL, 表示进程数目满了
 	if (!(e = env_free_list))
 		return -E_NO_FREE_ENV;
-	// 初始化一个用户进程虚拟空间
+	// 初始化一个用户进程虚拟空间, 也就是分配页目录
 	// Allocate and set up the page directory for this environment.
 	if ((r = env_setup_vm(e)) < 0)
 		return r;
@@ -244,6 +244,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	// to prevent the register values
 	// of a prior environment inhabiting this Env structure
 	// from "leaking" into our new environment.
+	// 清空进程寄存器部分
 	memset(&e->env_tf, 0, sizeof(e->env_tf));
 
 	// Set up appropriate initial values for the segment registers.
@@ -359,11 +360,39 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
-
+	// ELF 头部的地址
+	struct Elf* elf = (struct Elf*)binary;
+	// 段表的开头与结尾
+	struct Proghdr *ph, *eph;
+	ph = (struct Proghdr*)(elf->e_phoff + binary);
+	// Segment 表的尾部, 也就是 end_of_Proghdr;
+	eph = ph + elf->e_phnum;
+	// 判断 ELF 文件的魔数是否正确
+	if (elf->e_magic != ELF_MAGIC) {
+        panic("load_icode: not an ELF file");
+    }
+	// 将 e->env_pgdir 的物理地址存入 cr3 寄存器, 表明当前正在运行的进程
+	lcr3(PADDR(e->env_pgdir));
+	// 对于 ELF 中每一个 Segment
+	while(ph < eph) {
+		// ph 是最终的可执行文件段表
+		if(ph->p_type == ELF_PROG_LOAD) {
+			if(ph->p_filesz > ph->p_memsz) {
+				panic("load_icode: p_filesz > p_memsz");
+			}
+			// 将程序段加载进物理内存, 同理会在物理内存上分配这一块段大小的空间, p_memsz 表示允许段的最大大小
+			region_alloc(e, (void*)(ph->p_va), ph->p_memsz);
+			// 这一步相当于对物理空间的初始化, 初始化了整个程序的各个段在物理内存中的内容
+			memcpy((void*)(ph->p_va), (void*)(binary + ph->p_offset), ph->p_filesz);
+			memset((void*)(ph->p_va + ph->p_filesz), 0 , ph->p_memsz - ph->p_filesz);
+		}
+	}
+	e->env_tf.tf_eip = elf->e_entry;
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
-
 	// LAB 3: Your code here.
+	region_alloc(e, (void*)(USTACKTOP - PGSIZE), PGSIZE);
+    lcr3(PADDR(kern_pgdir));
 }
 
 //
@@ -377,6 +406,17 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	// 创建一个新的进程
+	struct Env *new_env = NULL;
+	// 分配一个进程, 同时分配了进程必须的部分, 页目录, 设置了进程的状态等
+	int result = env_alloc(&new_env, 0);
+	if(result < 0) {
+		panic("env_create: %e", result);
+	}
+	new_env->env_type = type;
+	// 在物理内存中构建出程序环境
+	load_icode(new_env, binary);
+	return ;
 }
 
 //
@@ -400,23 +440,27 @@ env_free(struct Env *e)
 
 	// Flush all mapped pages in the user portion of the address space
 	static_assert(UTOP % PTSIZE == 0);
+	// 将每一个页表对应的空间清空, 但是也不是全部, 而是在 UTOP下面的部分, 所以页表自身要手动清空
 	for (pdeno = 0; pdeno < PDX(UTOP); pdeno++) {
 
-		// only look at mapped page tables
+		// only look at mapped page tables, 只删除 mapped 虚拟地址与物理地址的页表项
 		if (!(e->env_pgdir[pdeno] & PTE_P))
 			continue;
 
 		// find the pa and va of the page table
+		// e->env_pgdir[pdeno] 是页目录项的内容,所以这里是页表的物理地址
 		pa = PTE_ADDR(e->env_pgdir[pdeno]);
 		pt = (pte_t*) KADDR(pa);
 
 		// unmap all PTEs in this page table
+		// 将页表中的每一页删除 mapped, 也就是从物理地址中删除,
 		for (pteno = 0; pteno <= PTX(~0); pteno++) {
 			if (pt[pteno] & PTE_P)
+				// 将虚拟地址与物理页的对应关系在页表中删除
+				// PGADDR 可以按顺序构建出虚拟地址
 				page_remove(e->env_pgdir, PGADDR(pdeno, pteno, 0));
 		}
-
-		// free the page table itself
+		// free the page table itself, 页目录中, 该页表项的内容为空
 		e->env_pgdir[pdeno] = 0;
 		page_decref(pa2page(pa));
 	}
@@ -426,7 +470,7 @@ env_free(struct Env *e)
 	e->env_pgdir = 0;
 	page_decref(pa2page(pa));
 
-	// return the environment to the free list
+	// return the environment to the free list, 进程状态改变
 	e->env_status = ENV_FREE;
 	e->env_link = env_free_list;
 	env_free_list = e;
@@ -493,7 +537,15 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
-
+	if(curenv && curenv->env_status == ENV_RUNNING) {
+		curenv->env_status = ENV_RUNNABLE;
+	}
+	curenv = e;
+	e->env_status = ENV_RUNNING;
+	e->env_runs++;
+	// 需要注意的是, 这里 e->env_pgdir 是在KERNBASE 上面的, 是 boot alloc 分配的
+	lcr3(PADDR(e->env_pgdir));
+	env_pop_tf(&(e->env_tf));
 	panic("env_run not yet implemented");
 }
 

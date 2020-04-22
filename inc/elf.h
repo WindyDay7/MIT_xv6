@@ -21,20 +21,20 @@ struct Elf {
 	uint32_t e_flags;		// Elf标志位
 	uint16_t e_ehsize;		// ELF文件头本身大小	
 	uint16_t e_phentsize;
-	uint16_t e_phnum;		// program header个数, 程序表头的个数
+	uint16_t e_phnum;		// 对于可执行文件(Program)而言, 段的个数
 	uint16_t e_shentsize;	// 段表描述符的大小，即为
 	uint16_t e_shnum;		// 段表描述符的数量，值为12表示test目标文件中有12个段
 	uint16_t e_shstrndx;	// 段表字符串表所在段表数组的下标，值为9表示段表字符串表位于第9个段
 };
 
-// 对于可执行文件而言
+// 对于可执行文件而言, 注意与下面的 Secthdr 的区别, 描述的都是段,
 struct Proghdr {			// 描述一个段的结构
 	uint32_t p_type;
 	uint32_t p_offset;		// 段相对于ELF文件开头的偏移
 	uint32_t p_va;			// 虚拟地址
 	uint32_t p_pa;			// 载入内存中的物理地址
-	uint32_t p_filesz;		
-	uint32_t p_memsz;		// 在内存中的大小
+	uint32_t p_filesz;		// 这个段实际的大小
+	uint32_t p_memsz;		// 这一段内存中最大的大小
 	uint32_t p_flags;		// 读，写，执行权限
 	uint32_t p_align;		// 对齐方式
 };
