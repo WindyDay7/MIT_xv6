@@ -14,6 +14,8 @@
 
 struct Env *envs = NULL;		// All environments
 struct Env *curenv = NULL;		// The current env
+// 这里空闲链表的形式是, env_free_list 指向空闲的 envs[i] 结构体, 
+// 然后使用 env_link 连接起来
 static struct Env *env_free_list;	// Free environment list
 					// (linked by Env->env_link)
 
@@ -25,6 +27,7 @@ static struct Env *env_free_list;	// Free environment list
 // kernel mode and user mode.  Segments serve many purposes on the x86.
 // We don't use any of their memory-mapping capabilities, but we need
 // them to switch privilege levels. 
+// 由于我们在全局描述表中设置的基地址为0, 所以内存与之相关甚少
 //
 // The kernel and user segments are identical except for the DPL.
 // To load the SS register, the CPL must equal the DPL.  Thus,
@@ -34,12 +37,14 @@ static struct Env *env_free_list;	// Free environment list
 // definition of gdt specifies the Descriptor Privilege Level (DPL)
 // of that descriptor: 0 for kernel and 3 for user.
 //
+// 构建全局描述表, SEG 函数是构建一个段, 
 struct Segdesc gdt[] =
 {
 	// 0x0 - unused (always faults -- for trapping NULL far pointers)
 	SEG_NULL,
 
 	// 0x8 - kernel code segment
+	// SEG 的参数分别表示 权限, 基地址, 大小限制, 优先级
 	[GD_KT >> 3] = SEG(STA_X | STA_R, 0x0, 0xffffffff, 0),
 
 	// 0x10 - kernel data segment
@@ -69,11 +74,11 @@ struct Pseudodesc gdt_pd = {
 //   On success, sets *env_store to the environment.
 //   On error, sets *env_store to NULL.
 //
+// 使用envid 从 env链表中查找对应的指针
 int
 envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 {
 	struct Env *e;
-
 	// If envid is zero, return the current environment.
 	if (envid == 0) {
 		*env_store = curenv;
@@ -100,7 +105,6 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 		*env_store = 0;
 		return -E_BAD_ENV;
 	}
-
 	*env_store = e;
 	return 0;
 }
@@ -116,7 +120,13 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
-
+	// 初始化的时候, env_free_list 指向第一个 envs 结构体
+	env_free_list = &envs[0];
+	int i = 0;
+	for(i = 0; i<NENV-1; i++) {
+		envs[i].env_link = &envs[i+1];
+	}
+	envs[NENV-1].env_link = NULL;
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -126,6 +136,7 @@ void
 env_init_percpu(void)
 {
 	lgdt(&gdt_pd);
+	// 将 GDT 的入口地址存入 gdtr寄存器
 	// The kernel never uses GS or FS, so we leave those set to
 	// the user data segment.
 	asm volatile("movw %%ax,%%gs" : : "a" (GD_UD|3));
@@ -136,9 +147,11 @@ env_init_percpu(void)
 	asm volatile("movw %%ax,%%ds" : : "a" (GD_KD));
 	asm volatile("movw %%ax,%%ss" : : "a" (GD_KD));
 	// Load the kernel text segment into CS.
+	// 在 x86中使用的是 IP 与 CS 寄存器实现指令寻址
 	asm volatile("ljmp %0,$1f\n 1:\n" : : "i" (GD_KT));
 	// For good measure, clear the local descriptor table (LDT),
 	// since we don't use it.
+	// lldt 导入 0, 表示不使用 LDT
 	lldt(0);
 }
 
@@ -149,7 +162,7 @@ env_init_percpu(void)
 // Do NOT (yet) map anything into the user portion
 // of the environment's virtual address space.
 //
-// Returns 0 on success, < 0 on error.  Errors include:
+// Returns 0 on success, < 0 on error.  Errors include:LDT
 //	-E_NO_MEM if page directory or table could not be allocated.
 //
 static int
@@ -177,11 +190,16 @@ env_setup_vm(struct Env *e)
 	//	is an exception -- you need to increment env_pgdir's
 	//	pp_ref for env_free to work correctly.
 	//    - The functions in kern/pmap.h are handy.
-
+	// 通过返回的物理页得到虚拟地址
+	e->env_pgdir = (pde_t*)page2kva(p);
+	// 这一部分相当于初始化进程的虚拟空间, 对于所有进程而言, UTOP上面的部分是内核空间, 对所有用户来说是一样的
+	memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+	p->pp_ref += 1;
 	// LAB 3: Your code here.
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
+	// 这里和设置内核页表的方法是一样的, 设置 UVPT为页目录, 在物理内存中分配页目录,
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
 
 	return 0;
@@ -195,16 +213,17 @@ env_setup_vm(struct Env *e)
 //	-E_NO_FREE_ENV if all NENV environments are allocated
 //	-E_NO_MEM on memory exhaustion
 //
+// 分配一个进程
 int
 env_alloc(struct Env **newenv_store, envid_t parent_id)
 {
 	int32_t generation;
 	int r;
 	struct Env *e;
-
+	// 如果 env_free_list 指向 NULL, 表示进程数目满了
 	if (!(e = env_free_list))
 		return -E_NO_FREE_ENV;
-
+	// 初始化一个用户进程虚拟空间
 	// Allocate and set up the page directory for this environment.
 	if ((r = env_setup_vm(e)) < 0)
 		return r;
@@ -215,7 +234,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 		generation = 1 << ENVGENSHIFT;
 	e->env_id = generation | (e - envs);
 
-	// Set the basic status variables.
+	// Set the basic status variables. 设置新进程的一些状态变量
 	e->env_parent_id = parent_id;
 	e->env_type = ENV_TYPE_USER;
 	e->env_status = ENV_RUNNABLE;
@@ -235,13 +254,14 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	// we switch privilege levels, the hardware does various
 	// checks involving the RPL and the Descriptor Privilege Level
 	// (DPL) stored in the descriptors themselves.
+	// 手动构建出段寄存器的内容, 这里没有使用 LDT表,
 	e->env_tf.tf_ds = GD_UD | 3;
 	e->env_tf.tf_es = GD_UD | 3;
 	e->env_tf.tf_ss = GD_UD | 3;
 	e->env_tf.tf_esp = USTACKTOP;
 	e->env_tf.tf_cs = GD_UT | 3;
 	// You will set e->env_tf.tf_eip later.
-
+	// 将 env_free_list 向后移动
 	// commit the allocation
 	env_free_list = e->env_link;
 	*newenv_store = e;
@@ -257,12 +277,28 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 // Pages should be writable by user and kernel.
 // Panic if any allocation attempt fails.
 //
+// 对于输入虚拟地址, 在物理内存上分配 len 字节的内存, 使用 page_alloc, 可以得到返回的物理页描述符
+// 同时将分配的物理页使用 page_insert 使之与虚拟地址对应我来
 static void
 region_alloc(struct Env *e, void *va, size_t len)
 {
 	// LAB 3: Your code here.
 	// (But only if you need it for load_icode.)
-	//
+	struct PageInfo *temp;
+	uintptr_t start = ROUNDUP((uintptr_t)va, PGSIZE);
+	uintptr_t end = ROUNDUP((uintptr_t)va+len, PGSIZE);
+	// 得到需要分配多少个页面
+	size_t num = (end - start) >> PGSHIFT;
+	size_t i = 0;
+	for(i = 0; i< num; i++) {
+		if(temp = page_alloc(0) == NULL) {
+			// 分配页面失败, 使用的是 E_NO_MEM 类型报错
+			panic("region_alloc: %e", -E_NO_MEM);
+		}
+		if((page_insert(e->env_pgdir, temp, (void*)(start+ i*PGSIZE), PTE_W | PTE_U)) < 0) {
+			panic("region_alloc: %e", -E_NO_MEM);
+		}
+	}
 	// Hint: It is easier to use region_alloc if the caller can pass
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
