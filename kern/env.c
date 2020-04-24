@@ -292,7 +292,8 @@ region_alloc(struct Env *e, void *va, size_t len)
 	size_t num = (end - start) >> PGSHIFT;
 	size_t i = 0;
 	for(i = 0; i< num; i++) {
-		if(temp = page_alloc(0) == NULL) {
+		temp = page_alloc(0);
+		if(temp == NULL) {
 			// 分配页面失败, 使用的是 E_NO_MEM 类型报错
 			panic("region_alloc: %e", -E_NO_MEM);
 		}

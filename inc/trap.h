@@ -3,6 +3,7 @@
 
 // Trap numbers
 // These are processor defined:
+// 这是 20种定义的中断与异常
 #define T_DIVIDE     0		// divide error
 #define T_DEBUG      1		// debug exception
 #define T_NMI        2		// non-maskable interrupt
@@ -44,7 +45,8 @@
 #include <inc/types.h>
 
 struct PushRegs {
-	/* registers as pushed by pusha */
+	/* registers as pushed by pusha */ 
+	// 这里是需要被 push 进入栈中的寄存器, 这些是常用寄存器
 	uint32_t reg_edi;
 	uint32_t reg_esi;
 	uint32_t reg_ebp;
@@ -55,6 +57,7 @@ struct PushRegs {
 	uint32_t reg_eax;
 } __attribute__((packed));
 
+// Trap 的时候需要存储的寄存器
 struct Trapframe {
 	struct PushRegs tf_regs;
 	uint16_t tf_es;

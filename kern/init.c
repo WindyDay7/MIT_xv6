@@ -35,11 +35,11 @@ i386_init(void)
 	memset(edata, 0, end - edata);
 	
 	// Initialize the console.
-	// Can't call cprintf until after we do this!
+	// Can't call cprintf until after we do this!, 控制台初始化
 	cons_init();
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
-
+	// 内存初始化, 
 	// Lab 2 memory management initialization functions
 	mem_init();
 
