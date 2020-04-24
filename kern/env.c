@@ -387,6 +387,7 @@ load_icode(struct Env *e, uint8_t *binary)
 			memcpy((void*)(ph->p_va), (void*)(binary + ph->p_offset), ph->p_filesz);
 			memset((void*)(ph->p_va + ph->p_filesz), 0 , ph->p_memsz - ph->p_filesz);
 		}
+		ph++;
 	}
 	e->env_tf.tf_eip = elf->e_entry;
 	// Now map one page for the program's initial stack
@@ -417,7 +418,6 @@ env_create(uint8_t *binary, enum EnvType type)
 	new_env->env_type = type;
 	// 在物理内存中构建出程序环境
 	load_icode(new_env, binary);
-	return ;
 }
 
 //
@@ -547,6 +547,5 @@ env_run(struct Env *e)
 	// 需要注意的是, 这里 e->env_pgdir 是在KERNBASE 上面的, 是 boot alloc 分配的
 	lcr3(PADDR(e->env_pgdir));
 	env_pop_tf(&(e->env_tf));
-	panic("env_run not yet implemented");
 }
 
