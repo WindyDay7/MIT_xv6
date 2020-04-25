@@ -59,8 +59,7 @@ static const char *trapname(int trapno)
 }
 
 
-void
-trap_init(void)
+void trap_init(void)
 {
     extern struct Segdesc gdt[];
 
@@ -225,7 +224,7 @@ trap(struct Trapframe *tf)
 	// print_trapframe can print some additional information.
 	last_tf = tf;
 
-	// Dispatch based on what type of trap occurred
+	// Dispatch based on what type of trap occurred, 为 tf 分配一个
 	trap_dispatch(tf);
 
 	// Return to the current environment, which should be running.

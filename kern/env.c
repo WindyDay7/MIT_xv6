@@ -131,7 +131,7 @@ env_init(void)
 	env_init_percpu();
 }
 
-// Load GDT and segment descriptors.
+// Load GDT and segment descriptors., 导入全局描述表, 以及段描述表
 void
 env_init_percpu(void)
 {
@@ -286,20 +286,20 @@ region_alloc(struct Env *e, void *va, size_t len)
 	// LAB 3: Your code here.
 	// (But only if you need it for load_icode.)
 	struct PageInfo *temp;
-	uintptr_t start = ROUNDUP((uintptr_t)va, PGSIZE);
+	// 这里必须是向下对齐, 向上的话会导致 va 起始地址空白
+	uintptr_t start = ROUNDDOWN((uintptr_t)va, PGSIZE);
 	uintptr_t end = ROUNDUP((uintptr_t)va+len, PGSIZE);
 	// 得到需要分配多少个页面
 	size_t num = (end - start) >> PGSHIFT;
 	size_t i = 0;
 	for(i = 0; i< num; i++) {
-		temp = page_alloc(0);
-		if(temp == NULL) {
-			// 分配页面失败, 使用的是 E_NO_MEM 类型报错
-			panic("region_alloc: %e", -E_NO_MEM);
-		}
-		if((page_insert(e->env_pgdir, temp, (void*)(start+ i*PGSIZE), PTE_W | PTE_U)) < 0) {
-			panic("region_alloc: %e", -E_NO_MEM);
-		}
+		if ((temp = page_alloc(0)) == NULL) {
+            panic("region_alloc: %e", -E_NO_MEM);
+        }
+		int r = page_insert(e->env_pgdir, temp, (void*)(start + i * PGSIZE), PTE_W | PTE_U);
+        if (r < 0) {
+            panic("region_alloc: %e", r);
+        }
 	}
 	// Hint: It is easier to use region_alloc if the caller can pass
 	//   'va' and 'len' values that are not page-aligned.
