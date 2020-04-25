@@ -497,6 +497,7 @@ env_destroy(struct Env *e)
 //
 // This function does not return.
 //
+// 退出内核, 从将 tf 保存的数据压入栈中, 从该环境开始执行
 void
 env_pop_tf(struct Trapframe *tf)
 {
@@ -517,6 +518,7 @@ env_pop_tf(struct Trapframe *tf)
 //
 // This function does not return.
 //
+// 这一步就是切换到进程 e 执行, e的执行状态保存在 e->env_tf 中
 void
 env_run(struct Env *e)
 {
@@ -546,6 +548,7 @@ env_run(struct Env *e)
 	e->env_runs++;
 	// 需要注意的是, 这里 e->env_pgdir 是在KERNBASE 上面的, 是 boot alloc 分配的
 	lcr3(PADDR(e->env_pgdir));
+	// This exits the kernel and starts executing some environment's code.
 	env_pop_tf(&(e->env_tf));
 }
 

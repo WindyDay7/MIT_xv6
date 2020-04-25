@@ -85,7 +85,7 @@ void trap_init(void)
     SETGATE(idt[T_DIVIDE], 0, GD_KT, &th_divide, 0);
     SETGATE(idt[T_DEBUG], 0, GD_KT, &th_debug, 0);
     SETGATE(idt[T_NMI], 0, GD_KT, &th_nmi, 0);
-    SETGATE(idt[T_BRKPT], 0, GD_KT, &th_brkpt, 0);
+    SETGATE(idt[T_BRKPT], 0, GD_KT, &th_brkpt, 3);
     SETGATE(idt[T_OFLOW], 0, GD_KT, &th_oflow, 0);
     SETGATE(idt[T_BOUND], 0, GD_KT, &th_bound, 0);
     SETGATE(idt[T_ILLOP], 0, GD_KT, &th_illop, 0);
@@ -105,7 +105,7 @@ void trap_init(void)
     trap_init_percpu();
 }
 
-// Initialize and load the per-CPU TSS and IDT
+// Initialize and load the per-CPU TSS and IDT, 加载 IDT 到ELF文件正确的位置
 void
 trap_init_percpu(void)
 {
@@ -115,7 +115,7 @@ trap_init_percpu(void)
 	ts.ts_ss0 = GD_KD;
 	ts.ts_iomb = sizeof(struct Taskstate);
 
-	// Initialize the TSS slot of the gdt.
+	// Initialize the TSS slot of the gdt. 初始化ELF文件的 TSS 段
 	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
 					sizeof(struct Taskstate) - 1, 0);
 	gdt[GD_TSS0 >> 3].sd_s = 0;
@@ -124,7 +124,7 @@ trap_init_percpu(void)
 	// bottom three bits are special; we leave them 0)
 	ltr(GD_TSS0);
 
-	// Load the IDT
+	// Load the IDT, 导入中断描述表
 	lidt(&idt_pd);
 }
 
@@ -179,10 +179,12 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
     switch (tf->tf_trapno) {
+		// 这里是判断 trap 的类型, 对于不同的 trap, 有不同的处理函数
     case T_PGFLT: page_fault_handler(tf); return;
 	case T_BRKPT: monitor(tf); return;
 
     default:
+		// 未知的 trap
         // Unexpected trap: The user process or the kernel has a bug.
         print_trapframe(tf);
         if (tf->tf_cs == GD_KT)
@@ -194,8 +196,9 @@ trap_dispatch(struct Trapframe *tf)
     }
 }
 
-void
-trap(struct Trapframe *tf)
+// Trapframe 在 Env 中的定义是保存当前环境, 这里传入的参数就是新的运行环境
+// 表示陷入内核执行的过程
+void trap(struct Trapframe *tf)
 {
 	// The environment may have set DF and some versions
 	// of GCC rely on DF being clear
@@ -203,18 +206,17 @@ trap(struct Trapframe *tf)
 
 	// Check that interrupts are disabled.  If this assertion
 	// fails, DO NOT be tempted to fix it by inserting a "cli" in
-	// the interrupt path.
+	// the interrupt path., 进入内核之后要先关中断, 不允许其他中断
 	assert(!(read_eflags() & FL_IF));
-
+	// 输出了 trap 的信息, 
 	cprintf("Incoming TRAP frame at %p\n", tf);
 
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
 		assert(curenv);
-
-		// Copy trap frame (which is currently on the stack)
-		// into 'curenv->env_tf', so that running the environment
-		// will restart at the trap point.
+		// Copy trap frame (which is currently on the stack) into 'curenv->env_tf',
+		//  so that running the environment will restart at the trap point.
+		// 这里相当于保存了参数, 注意这里的 tf 参数是用户环境的参数, 而 curenv 应该
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;
@@ -224,11 +226,13 @@ trap(struct Trapframe *tf)
 	// print_trapframe can print some additional information.
 	last_tf = tf;
 
-	// Dispatch based on what type of trap occurred, 为 tf 分配一个
+	// Dispatch based on what type of trap occurred, 为 tf 分配一个 handler, 
+	// 并进行了 trap 处理
 	trap_dispatch(tf);
-
+	// 在 trap_dispatch 函数的末尾, 使用了 env_destroy(curenv); 
 	// Return to the current environment, which should be running.
 	assert(curenv && curenv->env_status == ENV_RUNNING);
+	// 返回到用户进入内核之前执行的指令
 	env_run(curenv);
 }
 
@@ -244,7 +248,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
-
+	if ((tf->tf_cs & 0x3) == 0) {
+        panic("page fault in kernel mode!");
+    }
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
 

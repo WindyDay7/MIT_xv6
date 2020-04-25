@@ -73,7 +73,7 @@ _alltraps:
     pushl %ds
     pushl %es
     pushal
-    movw $GD_KD, %ax
+    movw $GD_KD, %ax 
     movw %ax, %ds
     movw %ax, %es
     pushl %esp
