@@ -81,6 +81,7 @@ void trap_init(void)
     void th_align();
     void th_mchk();
     void th_simderr();
+	void th_syscall();
 
     SETGATE(idt[T_DIVIDE], 0, GD_KT, &th_divide, 0);
     SETGATE(idt[T_DEBUG], 0, GD_KT, &th_debug, 0);
@@ -100,6 +101,8 @@ void trap_init(void)
     SETGATE(idt[T_ALIGN], 0, GD_KT, &th_align, 0);
     SETGATE(idt[T_MCHK], 0, GD_KT, &th_mchk, 0);
     SETGATE(idt[T_SIMDERR], 0, GD_KT, &th_simderr, 0);
+	// 对于系统调用, 原进程是处于用户态
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, &th_syscall, 3);
 
     // Per-CPU setup 
     trap_init_percpu();
@@ -182,7 +185,12 @@ trap_dispatch(struct Trapframe *tf)
 		// 这里是判断 trap 的类型, 对于不同的 trap, 有不同的处理函数
     case T_PGFLT: page_fault_handler(tf); return;
 	case T_BRKPT: monitor(tf); return;
-
+	case T_SYSCALL:
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, 
+				tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
+				tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi,
+				tf->tf_regs.reg_esi);
+		return;
     default:
 		// 未知的 trap
         // Unexpected trap: The user process or the kernel has a bug.

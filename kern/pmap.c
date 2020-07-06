@@ -619,7 +619,22 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	uint32_t* start = ROUNDDOWN((void*)va, PGSIZE);
+	uint32_t* end = ROUNDUP((void*)(va+len), PGSIZE);
+	// 初始化地址
+	uint32_t addr = (uint32_t)va;
+	pte_t *temp = NULL;
 
+	while( start < end) {
+		temp = pgdir_walk(env->env_pgdir, (void *)start, 0);
+		// 1. 访问到内核空间   2. 页表缺页       3. 页表的页表项无效     4. 页表项内容的权限不一致
+		if ((uint32_t)start >= ULIM || temp == NULL || !(*temp | PTE_P) || (*temp & perm) != perm) {
+			// 缺页错误的首地址, 表示从某处开始缺页
+            user_mem_check_addr = ((uint32_t)start < addr) ? addr : (uint32_t)start;
+            return -E_FAULT;
+        }
+        start += PGSIZE;
+	}
 	return 0;
 }
 

@@ -1,4 +1,5 @@
 // Called from entry.S to get us going.
+// entry.S 进行了一些初始化
 // entry.S already took care of defining envs, pages, uvpd, and uvpt.
 
 #include <inc/lib.h>
@@ -14,11 +15,11 @@ libmain(int argc, char **argv)
 	// set thisenv to point at our Env structure in envs[].
 	// LAB 3: Your code here.
 	thisenv = 0;
-
+	// thisenv 指向将当前正在执行的进程
+	thisenv = &envs[ENVX(sys_getenvid())];
 	// save the name of the program so that panic() can use it
 	if (argc > 0)
 		binaryname = argv[0];
-
 	// call user main routine
 	umain(argc, argv);
 

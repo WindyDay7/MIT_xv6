@@ -57,7 +57,7 @@ struct PushRegs {
 	uint32_t reg_eax;
 } __attribute__((packed));
 
-// Trap 的时候需要存储的寄存器
+// Trap 的时候需要存储的寄存器, 也就是描述进程的主要内容, 参数
 struct Trapframe {
 	struct PushRegs tf_regs;
 	uint16_t tf_es;
