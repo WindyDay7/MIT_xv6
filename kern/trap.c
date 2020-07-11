@@ -270,11 +270,8 @@ void trap(struct Trapframe *tf)
 	// fails, DO NOT be tempted to fix it by inserting a "cli" in
 	// the interrupt path., 进入内核之后要先关中断, 不允许其他中断
 	assert(!(read_eflags() & FL_IF));
-<<<<<<< HEAD
-=======
 	// 输出了 trap 的信息, 
-	cprintf("Incoming TRAP frame at %p\n", tf);
->>>>>>> lab3
+	// cprintf("Incoming TRAP frame at %p\n", tf);
 
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
@@ -282,8 +279,6 @@ void trap(struct Trapframe *tf)
 		// serious kernel work.
 		// LAB 4: Your code here.
 		assert(curenv);
-<<<<<<< HEAD
-
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {
 			env_free(curenv);
@@ -294,10 +289,7 @@ void trap(struct Trapframe *tf)
 		// Copy trap frame (which is currently on the stack)
 		// into 'curenv->env_tf', so that running the environment
 		// will restart at the trap point.
-=======
-		// Copy trap frame (which is currently on the stack) into 'curenv->env_tf',
-		//  so that running the environment will restart at the trap point.
->>>>>>> lab3
+
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;
@@ -310,7 +302,6 @@ void trap(struct Trapframe *tf)
 	// Dispatch based on what type of trap occurred, 为 tf 分配一个 handler, 
 	// 并进行了 trap 处理
 	trap_dispatch(tf);
-<<<<<<< HEAD
 
 	// If we made it to this point, then no other environment was
 	// scheduled, so we should return to the current environment
@@ -319,13 +310,13 @@ void trap(struct Trapframe *tf)
 		env_run(curenv);
 	else
 		sched_yield();
-=======
+	/*
 	// 在 trap_dispatch 函数的末尾, 使用了 env_destroy(curenv); 
 	// Return to the current environment, which should be running.
 	assert(curenv && curenv->env_status == ENV_RUNNING);
 	// 返回到用户进入内核之前执行的指令
 	env_run(curenv);
->>>>>>> lab3
+	*/
 }
 
 

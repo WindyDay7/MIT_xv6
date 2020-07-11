@@ -26,8 +26,10 @@ struct CpuInfo {
 };
 
 // Initialized in mpconfig.c
+// all cpu status array, 
 extern struct CpuInfo cpus[NCPU];
 extern int ncpu;                    // Total number of CPUs in the system
+// the cpu used in boot the kernel
 extern struct CpuInfo *bootcpu;     // The boot-strap processor (BSP)
 extern physaddr_t lapicaddr;        // Physical MMIO address of the local APIC
 
@@ -35,6 +37,7 @@ extern physaddr_t lapicaddr;        // Physical MMIO address of the local APIC
 extern unsigned char percpu_kstacks[NCPU][KSTKSIZE];
 
 int cpunum(void);
+// get this cpu address from cpu[]
 #define thiscpu (&cpus[cpunum()])
 
 void mp_init(void);
