@@ -17,16 +17,28 @@
 
 static void boot_aps(void);
 
+// Test the stack backtrace function (lab 1 only)
+
+void
+test_backtrace(int x)
+{
+	cprintf("entering test_backtrace %d\n", x);
+	if (x > 0)
+		test_backtrace(x-1);
+	else
+		mon_backtrace(0, 0, 0);
+	cprintf("leaving test_backtrace %d\n", x);
+}
 
 void
 i386_init(void)
 {
 	// Initialize the console.
-	// Can't call cprintf until after we do this!
+	// Can't call cprintf until after we do this!, 控制台初始化
 	cons_init();
 
 	cprintf("6828 decimal is %o octal!\n", 6828);
-
+	// 内存初始化, 
 	// Lab 2 memory management initialization functions
 	mem_init();
 

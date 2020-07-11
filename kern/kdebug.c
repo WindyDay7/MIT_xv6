@@ -56,9 +56,7 @@ struct UserStabData {
 //		stab_binsearch(stabs, &left, &right, N_SO, 0xf0100184);
 //	will exit setting left = 118, right = 554.
 //
-static void
-stab_binsearch(const struct Stab *stabs, int *region_left, int *region_right,
-	       int type, uintptr_t addr)
+static void stab_binsearch(const struct Stab *stabs, int *region_left, int *region_right, int type, uintptr_t addr)
 {
 	int l = *region_left, r = *region_right, any_matches = 0;
 
@@ -110,6 +108,7 @@ stab_binsearch(const struct Stab *stabs, int *region_left, int *region_right,
 //	negative if not.  But even if it returns negative it has stored some
 //	information into '*info'.
 //
+// 判断能否在符号表中找到这一指令的信息
 int
 debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 {
@@ -128,7 +127,9 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	// Find the relevant set of stabs
 	if (addr >= ULIM) {
 		stabs = __STAB_BEGIN__;
+		// 符号表的起始地址
 		stab_end = __STAB_END__;
+		// 符号表的结束地址
 		stabstr = __STABSTR_BEGIN__;
 		stabstr_end = __STABSTR_END__;
 	} else {
@@ -148,8 +149,14 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 		stabstr = usd->stabstr;
 		stabstr_end = usd->stabstr_end;
 
-		// Make sure the STABS and string table memory is valid.
+		// Make sure the STABS and string table memory is valid. 用户是可以读符号表的
 		// LAB 3: Your code here.
+		if (user_mem_check(curenv, stabs, stab_end - stabs, PTE_U) < 0) {
+			return -1;
+		}
+		if (user_mem_check(curenv, stabstr, stabstr_end - stabstr, PTE_U) < 0) {
+			return -1;
+		}
 	}
 
 	// String table validity checks
@@ -180,6 +187,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 		if (stabs[lfun].n_strx < stabstr_end - stabstr)
 			info->eip_fn_name = stabstr + stabs[lfun].n_strx;
 		info->eip_fn_addr = stabs[lfun].n_value;
+		// 被调用函数的地址
 		addr -= info->eip_fn_addr;
 		// Search within the function definition for the line number.
 		lline = lfun;
@@ -198,7 +206,11 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	// Search within [lline, rline] for the line number stab.
 	// If found, set info->eip_line to the right line number.
 	// If not found, return -1.
-	//
+	
+	stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
+    if (lline > rline)
+        return -1;
+    info->eip_line = stabs[lline].n_desc;
 	// Hint:
 	//	There's a particular stabs type used for line numbers.
 	//	Look at the STABS documentation and <inc/stab.h> to find
@@ -206,8 +218,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	// Your code here.
 
 
-	// Search backwards from the line number for the relevant filename
-	// stab.
+	// Search backwards from the line number for the relevant filename stab.
 	// We can't just use the "lfile" stab because inlined functions
 	// can interpolate code from a different file!
 	// Such included source files use the N_SOL stab type.
@@ -222,9 +233,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	// Set eip_fn_narg to the number of arguments taken by the function,
 	// or 0 if there was no containing function.
 	if (lfun < rfun)
-		for (lline = lfun + 1;
-		     lline < rfun && stabs[lline].n_type == N_PSYM;
-		     lline++)
+		for (lline = lfun + 1; lline < rfun && stabs[lline].n_type == N_PSYM; lline++)
 			info->eip_fn_narg++;
 
 	return 0;

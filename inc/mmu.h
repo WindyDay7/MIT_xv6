@@ -20,21 +20,25 @@
 // |      Index     |      Index     |                     |
 // +----------------+----------------+---------------------+
 //  \--- PDX(la) --/ \--- PTX(la) --/ \---- PGOFF(la) ----/
-//  \---------- PGNUM(la) ----------/
+//  \---------- PGNUM(l/a) ----------/
 //
 // The PDX, PTX, PGOFF, and PGNUM macros decompose linear addresses as shown.
 // To construct a linear address la from PDX(la), PTX(la), and PGOFF(la),
 // use PGADDR(PDX(la), PTX(la), PGOFF(la)).
 
 // page number field of address
+// 获得物理物理内存中的物理页号 PTXSHIFT = 12, 表示页面大小
 #define PGNUM(la)	(((uintptr_t) (la)) >> PTXSHIFT)
 
 // page directory index
+// 获得页目录的索引
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x3FF)
 
+// 获取页表的索引
 // page table index
 #define PTX(la)		((((uintptr_t) (la)) >> PTXSHIFT) & 0x3FF)
 
+// 页表内偏移
 // offset in page
 #define PGOFF(la)	(((uintptr_t) (la)) & 0xFFF)
 
@@ -47,14 +51,17 @@
 
 #define PGSIZE		4096		// bytes mapped by a page
 #define PGSHIFT		12		// log2(PGSIZE)
+// 一页的大小是 4KB
 
 #define PTSIZE		(PGSIZE*NPTENTRIES) // bytes mapped by a page directory entry
 #define PTSHIFT		22		// log2(PTSIZE)
+// 一个页表的大小是 4MB, 在页表内的偏移是 22位
 
 #define PTXSHIFT	12		// offset of PTX in a linear address
 #define PDXSHIFT	22		// offset of PDX in a linear address
 
 // Page table/directory entry flags.
+// 页表/页目录 中页表项的的flag, 就是控制符号
 #define PTE_P		0x001	// Present
 #define PTE_W		0x002	// Writeable
 #define PTE_U		0x004	// User
@@ -73,9 +80,11 @@
 #define PTE_SYSCALL	(PTE_AVAIL | PTE_P | PTE_W | PTE_U)
 
 // Address in page table or page directory entry
+// 页表或者页目录的页表项/目录项的物理地址, 其中 0xFFF 表示页表的大小, 也就是页内偏移
 #define PTE_ADDR(pte)	((physaddr_t) (pte) & ~0xFFF)
 
 // Control Register flags
+// 页表的目录项中除了物理地址还有控制 flag
 #define CR0_PE		0x00000001	// Protection Enable
 #define CR0_MP		0x00000002	// Monitor coProcessor
 #define CR0_EM		0x00000004	// Emulation
@@ -136,6 +145,7 @@
 /*
  * Macros to build GDT entries in assembly.
  */
+
 #define SEG_NULL						\
 	.word 0, 0;						\
 	.byte 0, 0, 0, 0
@@ -279,6 +289,7 @@ struct Gatedesc {
 // - dpl: Descriptor Privilege Level -
 //	  the privilege level required for software to invoke
 //	  this interrupt/trap gate explicitly using an int instruction.
+// 构建了中断向量描述符的内容, 执行到这里的时候就会直接跳转到 trap, 
 #define SETGATE(gate, istrap, sel, off, dpl)			\
 {								\
 	(gate).gd_off_15_0 = (uint32_t) (off) & 0xffff;		\

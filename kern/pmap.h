@@ -13,8 +13,11 @@ struct Env;
 extern char bootstacktop[], bootstack[];
 
 extern struct PageInfo *pages;
+
+// 物理内存的大小有多少个 page
 extern size_t npages;
 
+// 内核的初始页面目录
 extern pde_t *kern_pgdir;
 
 
@@ -23,6 +26,7 @@ extern pde_t *kern_pgdir;
  * and returns the corresponding physical address.  It panics if you pass it a
  * non-kernel virtual address.
  */
+// 就是 0xf0000000 往上的 256MB 的内存对应的物理地址
 #define PADDR(kva) _paddr(__FILE__, __LINE__, kva)
 
 static inline physaddr_t
@@ -68,22 +72,27 @@ void *	mmio_map_region(physaddr_t pa, size_t size);
 int	user_mem_check(struct Env *env, const void *va, size_t len, int perm);
 void	user_mem_assert(struct Env *env, const void *va, size_t len, int perm);
 
-static inline physaddr_t
-page2pa(struct PageInfo *pp)
+
+// 注意 pages 的声明, struct PageInfo *pages; 是一个链表, pages 是链表头部
+// 所以 pp 是链表中的一个数据, 其实就是页表项号(是一个地址), 所以左移 12 位得到物理地址,
+// 所以 pp - pages 是物理页号
+static inline physaddr_t page2pa(struct PageInfo *pp)
 {
 	return (pp - pages) << PGSHIFT;
 }
 
-static inline struct PageInfo*
-pa2page(physaddr_t pa)
+
+// 根据物理地址得到 pages 的索引, pages 是物理页描述数组
+static inline struct PageInfo* pa2page(physaddr_t pa)
 {
 	if (PGNUM(pa) >= npages)
 		panic("pa2page called with invalid pa");
 	return &pages[PGNUM(pa)];
 }
 
-static inline void*
-page2kva(struct PageInfo *pp)
+
+// 先获取物理地址, 然后获取虚拟地址
+static inline void* page2kva(struct PageInfo *pp)
 {
 	return KADDR(page2pa(pp));
 }

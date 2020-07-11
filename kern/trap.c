@@ -66,18 +66,56 @@ static const char *trapname(int trapno)
 }
 
 
-void
-trap_init(void)
+void trap_init(void)
 {
-	extern struct Segdesc gdt[];
+    extern struct Segdesc gdt[];
 
-	// LAB 3: Your code here.
+    void th_divide();
+    void th_debug();
+    void th_nmi();
+    void th_brkpt();
+    void th_oflow();
+    void th_bound();
+    void th_illop();
+    void th_device();
+    void th_dblflt();
+    void th_tss();
+    void th_segnp();
+    void th_stack();
+    void th_gpflt();
+    void th_pgflt();
+    void th_fperr();
+    void th_align();
+    void th_mchk();
+    void th_simderr();
+	void th_syscall();
 
-	// Per-CPU setup 
-	trap_init_percpu();
+    SETGATE(idt[T_DIVIDE], 0, GD_KT, &th_divide, 0);
+    SETGATE(idt[T_DEBUG], 0, GD_KT, &th_debug, 0);
+    SETGATE(idt[T_NMI], 0, GD_KT, &th_nmi, 0);
+    SETGATE(idt[T_BRKPT], 0, GD_KT, &th_brkpt, 3);
+    SETGATE(idt[T_OFLOW], 0, GD_KT, &th_oflow, 0);
+    SETGATE(idt[T_BOUND], 0, GD_KT, &th_bound, 0);
+    SETGATE(idt[T_ILLOP], 0, GD_KT, &th_illop, 0);
+    SETGATE(idt[T_DEVICE], 0, GD_KT, &th_device, 0);
+    SETGATE(idt[T_DBLFLT], 0, GD_KT, &th_dblflt, 0);
+    SETGATE(idt[T_TSS], 0, GD_KT, &th_tss, 0);
+    SETGATE(idt[T_SEGNP], 0, GD_KT, &th_segnp, 0);
+    SETGATE(idt[T_STACK], 0, GD_KT, &th_stack, 0);
+    SETGATE(idt[T_GPFLT], 0, GD_KT, &th_gpflt, 0);
+    SETGATE(idt[T_PGFLT], 0, GD_KT, &th_pgflt, 0);
+    SETGATE(idt[T_FPERR], 0, GD_KT, &th_fperr, 0);
+    SETGATE(idt[T_ALIGN], 0, GD_KT, &th_align, 0);
+    SETGATE(idt[T_MCHK], 0, GD_KT, &th_mchk, 0);
+    SETGATE(idt[T_SIMDERR], 0, GD_KT, &th_simderr, 0);
+	// 对于系统调用, 原进程是处于用户态
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, &th_syscall, 3);
+
+    // Per-CPU setup 
+    trap_init_percpu();
 }
 
-// Initialize and load the per-CPU TSS and IDT
+// Initialize and load the per-CPU TSS and IDT, 加载 IDT 到ELF文件正确的位置
 void
 trap_init_percpu(void)
 {
@@ -112,7 +150,7 @@ trap_init_percpu(void)
 	ts.ts_ss0 = GD_KD;
 	ts.ts_iomb = sizeof(struct Taskstate);
 
-	// Initialize the TSS slot of the gdt.
+	// Initialize the TSS slot of the gdt. 初始化ELF文件的 TSS 段
 	gdt[GD_TSS0 >> 3] = SEG16(STS_T32A, (uint32_t) (&ts),
 					sizeof(struct Taskstate) - 1, 0);
 	gdt[GD_TSS0 >> 3].sd_s = 0;
@@ -121,7 +159,7 @@ trap_init_percpu(void)
 	// bottom three bits are special; we leave them 0)
 	ltr(GD_TSS0);
 
-	// Load the IDT
+	// Load the IDT, 导入中断描述表
 	lidt(&idt_pd);
 }
 
@@ -175,7 +213,23 @@ static void
 trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
+
+	// Handle processor exceptions.
 	// LAB 3: Your code here.
+	if (tf->tf_trapno == T_PGFLT) {
+		page_fault_handler(tf);
+		return;
+	}
+	if (tf->tf_trapno == T_BRKPT) {
+		monitor(tf);
+		return;
+	}
+
+	if (tf->tf_trapno == T_SYSCALL) {
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
+			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);
+		return;
+	}
 
 	// Handle spurious interrupts
 	// The hardware sometimes raises these because of noise on the
@@ -185,12 +239,6 @@ trap_dispatch(struct Trapframe *tf)
 		print_trapframe(tf);
 		return;
 	}
-
-	// Handle clock interrupts. Don't forget to acknowledge the
-	// interrupt using lapic_eoi() before calling the scheduler!
-	// LAB 4: Your code here.
-
-	// Unexpected trap: The user process or the kernel has a bug.
 	print_trapframe(tf);
 	if (tf->tf_cs == GD_KT)
 		panic("unhandled trap in kernel");
@@ -198,10 +246,12 @@ trap_dispatch(struct Trapframe *tf)
 		env_destroy(curenv);
 		return;
 	}
+
 }
 
-void
-trap(struct Trapframe *tf)
+// Trapframe 在 Env 中的定义是保存当前环境, 这里传入的参数是中断处理程序的寄存器信息
+// 表示开始处理中断或者异常
+void trap(struct Trapframe *tf)
 {
 	// The environment may have set DF and some versions
 	// of GCC rely on DF being clear
@@ -218,8 +268,13 @@ trap(struct Trapframe *tf)
 		lock_kernel();
 	// Check that interrupts are disabled.  If this assertion
 	// fails, DO NOT be tempted to fix it by inserting a "cli" in
-	// the interrupt path.
+	// the interrupt path., 进入内核之后要先关中断, 不允许其他中断
 	assert(!(read_eflags() & FL_IF));
+<<<<<<< HEAD
+=======
+	// 输出了 trap 的信息, 
+	cprintf("Incoming TRAP frame at %p\n", tf);
+>>>>>>> lab3
 
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
@@ -227,6 +282,7 @@ trap(struct Trapframe *tf)
 		// serious kernel work.
 		// LAB 4: Your code here.
 		assert(curenv);
+<<<<<<< HEAD
 
 		// Garbage collect if current enviroment is a zombie
 		if (curenv->env_status == ENV_DYING) {
@@ -238,6 +294,10 @@ trap(struct Trapframe *tf)
 		// Copy trap frame (which is currently on the stack)
 		// into 'curenv->env_tf', so that running the environment
 		// will restart at the trap point.
+=======
+		// Copy trap frame (which is currently on the stack) into 'curenv->env_tf',
+		//  so that running the environment will restart at the trap point.
+>>>>>>> lab3
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;
@@ -247,8 +307,10 @@ trap(struct Trapframe *tf)
 	// print_trapframe can print some additional information.
 	last_tf = tf;
 
-	// Dispatch based on what type of trap occurred
+	// Dispatch based on what type of trap occurred, 为 tf 分配一个 handler, 
+	// 并进行了 trap 处理
 	trap_dispatch(tf);
+<<<<<<< HEAD
 
 	// If we made it to this point, then no other environment was
 	// scheduled, so we should return to the current environment
@@ -257,6 +319,13 @@ trap(struct Trapframe *tf)
 		env_run(curenv);
 	else
 		sched_yield();
+=======
+	// 在 trap_dispatch 函数的末尾, 使用了 env_destroy(curenv); 
+	// Return to the current environment, which should be running.
+	assert(curenv && curenv->env_status == ENV_RUNNING);
+	// 返回到用户进入内核之前执行的指令
+	env_run(curenv);
+>>>>>>> lab3
 }
 
 
@@ -267,11 +336,13 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
-
+	
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
-
+	if ((tf->tf_cs & 0x3) == 0) {
+        panic("page fault in kernel mode!");
+    }
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
 

@@ -47,5 +47,12 @@ struct Stab {
 	uint16_t n_desc;        // description field
 	uintptr_t n_value;	// value of symbol
 };
-
+/*
+Symnum是符号索引，换句话说，整个符号表看作一个数组，Symnum是当前符号在数组中的下标
+n_type是符号类型，FUN指函数名，SLINE指在text段中的行号
+n_othr目前没被使用，其值固定为0
+n_desc表示在文件中的行号
+n_value表示地址。特别要注意的是，这里只有FUN类型的符号的地址是绝对地址，SLINE符号的地址是偏移量，
+其实际地址为函数入口地址加上偏移量。比如第3行的含义是地址f01000b8(=0xf01000a6+0x00000012)对应文件第34行。
+*/
 #endif /* !JOS_STAB_H */
