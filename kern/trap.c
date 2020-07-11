@@ -204,8 +204,8 @@ trap_dispatch(struct Trapframe *tf)
     }
 }
 
-// Trapframe 在 Env 中的定义是保存当前环境, 这里传入的参数就是新的运行环境
-// 表示陷入内核执行的过程
+// Trapframe 在 Env 中的定义是保存当前环境, 这里传入的参数是中断处理程序的寄存器信息
+// 表示开始处理中断或者异常
 void trap(struct Trapframe *tf)
 {
 	// The environment may have set DF and some versions
@@ -224,7 +224,6 @@ void trap(struct Trapframe *tf)
 		assert(curenv);
 		// Copy trap frame (which is currently on the stack) into 'curenv->env_tf',
 		//  so that running the environment will restart at the trap point.
-		// 这里相当于保存了参数, 注意这里的 tf 参数是用户环境的参数, 而 curenv 应该
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;
@@ -252,7 +251,7 @@ page_fault_handler(struct Trapframe *tf)
 
 	// Read processor's CR2 register to find the faulting address
 	fault_va = rcr2();
-
+	
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.

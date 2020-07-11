@@ -68,7 +68,7 @@ struct Trapframe {
 	/* below here defined by x86 hardware */
 	uint32_t tf_err;
 	uintptr_t tf_eip;
-	uint16_t tf_cs;
+	uint16_t tf_cs;   
 	uint16_t tf_padding3;
 	uint32_t tf_eflags;
 	/* below here only when crossing rings, such as from user to kernel */

@@ -136,7 +136,7 @@ void
 env_init_percpu(void)
 {
 	lgdt(&gdt_pd);
-	// 将 GDT 的入口地址存入 gdtr寄存器
+	// 将 GDT 的入口地址存入 gdtr寄存器, 
 	// The kernel never uses GS or FS, so we leave those set to
 	// the user data segment.
 	asm volatile("movw %%ax,%%gs" : : "a" (GD_UD|3));
@@ -308,8 +308,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 }
 
 //
-// Set up the initial program binary, stack, and processor flags
-// for a user process.
+// Set up the initial program binary, stack, and processor flags for a user process.
 // This function is ONLY called during kernel initialization,
 // before running the first user-mode environment.
 //
@@ -497,7 +496,7 @@ env_destroy(struct Env *e)
 //
 // This function does not return.
 //
-// 退出内核, 从将 tf 保存的数据压入栈中, 从该环境开始执行
+// 退出内核, 从将 tf 保存的数据入寄存器中中, 从该环境开始执行
 void
 env_pop_tf(struct Trapframe *tf)
 {
@@ -548,7 +547,7 @@ env_run(struct Env *e)
 	e->env_runs++;
 	// 需要注意的是, 这里 e->env_pgdir 是在KERNBASE 上面的, 是 boot alloc 分配的
 	lcr3(PADDR(e->env_pgdir));
-	// This exits the kernel and starts executing some environment's code.
+	// 将 e 保存的相关寄存器的值加载入寄存器中
 	env_pop_tf(&(e->env_tf));
 }
 
