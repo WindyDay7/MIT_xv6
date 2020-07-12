@@ -107,7 +107,7 @@ boot_alloc(uint32_t n)
 	// 这里的 free memory 是在 KERNBASE 上面的虚拟地址空间中的 free memory
 	result = nextfree;
 	nextfree = ROUNDUP((char *) result+n, PGSIZE);
-	cprintf("boot_alloc memory at %x, next memory allocate at %x\n", result, nextfree);
+	// cprintf("boot_alloc memory at %x, next memory allocate at %x\n", result, nextfree);
 	return result;
 }
 
@@ -182,7 +182,6 @@ mem_init(void)
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
 	page_init();
-
 	check_page_free_list(1);
 	check_page_alloc();
 	check_page();
@@ -341,7 +340,6 @@ page_init(void)
 			pages[i].pp_ref = 1;
 			pages[i].pp_link = NULL;
 		}
-		
 		else {
 			pages[i].pp_ref = 0;
 			// 这一步是形成空闲链表
@@ -748,6 +746,7 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 static void
 check_page_free_list(bool only_low_memory)
 {
+	
 	struct PageInfo *pp;
 	unsigned pdx_limit = only_low_memory ? 1 : NPDENTRIES;
 	int nfree_basemem = 0, nfree_extmem = 0;
