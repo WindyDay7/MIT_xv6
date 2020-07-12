@@ -59,12 +59,15 @@ bootmain(void)
 	eph = ph + ELFHDR->e_phnum;
 	// ELFHDR->e_phnum 表示程序头部表表项的个数, 即程序 segment 的个数 
 	// 所以 eph 就是程序头部表的结尾
-	for (; ph < eph; ph++)
+	for (; ph < eph; ph++) {
 		// 所以每次表头往后移动一位, 表示下一个程序段
 		// p_pa is the load address of this segment (as well as the physical address)
 		readseg(ph->p_pa, ph->p_memsz, ph->p_offset);
 		// 从外存中将这一数据段读进内存地址, 这个地址就是 p_pa, 
-
+		for (i = 0; i < ph->p_memsz - ph->p_filesz; i++) {
+			*((char *) ph->p_pa + ph->p_filesz + i) = 0;
+		}
+	}
 	// call the entry point from the ELF header
 	// note: does not return!
 	((void (*)(void)) (ELFHDR->e_entry))();

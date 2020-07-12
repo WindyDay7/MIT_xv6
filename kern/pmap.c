@@ -746,7 +746,6 @@ user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 static void
 check_page_free_list(bool only_low_memory)
 {
-	
 	struct PageInfo *pp;
 	unsigned pdx_limit = only_low_memory ? 1 : NPDENTRIES;
 	int nfree_basemem = 0, nfree_extmem = 0;
@@ -754,7 +753,6 @@ check_page_free_list(bool only_low_memory)
 
 	if (!page_free_list)
 		panic("'page_free_list' is a null pointer!");
-
 	if (only_low_memory) {
 		// Move pages with lower addresses first in the free
 		// list, since entry_pgdir does not map all pages.
@@ -769,7 +767,6 @@ check_page_free_list(bool only_low_memory)
 		*tp[0] = pp2;
 		page_free_list = pp1;
 	}
-
 	// if there's a page that shouldn't be on the free list,
 	// try to make sure it eventually causes trouble.
 	for (pp = page_free_list; pp; pp = pp->pp_link)
@@ -797,7 +794,6 @@ check_page_free_list(bool only_low_memory)
 		else
 			++nfree_extmem;
 	}
-
 	assert(nfree_basemem > 0);
 	assert(nfree_extmem > 0);
 
