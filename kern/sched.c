@@ -29,7 +29,26 @@ sched_yield(void)
 	// below to halt the cpu.
 
 	// LAB 4: Your code here.
-
+	idle = curenv;
+    int idle_envid = (idle == NULL) ? -1 : ENVX(idle->env_id);
+    int i = idle_envid + 1;
+	// search envs after idle
+	while(i < NENV) {
+		if (envs[i].env_status == ENV_RUNNABLE) {
+            env_run(&envs[i]);
+        }
+		i++;
+	}
+    // find from 1st env if not found
+    for (i = 0; i < idle_envid; i++) {;
+        if (envs[i].env_status == ENV_RUNNABLE) {
+            env_run(&envs[i]);
+        }
+    }
+	// if still not found, try idle
+    if(idle != NULL && idle->env_status == ENV_RUNNING) {
+        env_run(idle);
+    }
 	// sched_halt never returns
 	sched_halt();
 }

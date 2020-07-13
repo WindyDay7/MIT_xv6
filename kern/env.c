@@ -77,7 +77,6 @@ struct Pseudodesc gdt_pd = {
 //   0 on success, -E_BAD_ENV on error.
 //   On success, sets *env_store to the environment.
 //   On error, sets *env_store to NULL.
-//
 // 使用envid 从 env链表中查找对应的指针
 int
 envid2env(envid_t envid, struct Env **env_store, bool checkperm)
@@ -96,6 +95,7 @@ envid2env(envid_t envid, struct Env **env_store, bool checkperm)
 	// that used the same slot in the envs[] array).
 	e = &envs[ENVX(envid)];
 	if (e->env_status == ENV_FREE || e->env_id != envid) {
+		// set &e = 0, 
 		*env_store = 0;
 		return -E_BAD_ENV;
 	}
@@ -578,6 +578,7 @@ env_run(struct Env *e)
 	e->env_runs++;
 	// 需要注意的是, 这里 e->env_pgdir 是在KERNBASE 上面的, 是 boot alloc 分配的
 	lcr3(PADDR(e->env_pgdir));
+	unlock_kernel();
 	// 将 e 保存的相关寄存器的值加载入寄存器中
 	env_pop_tf(&(e->env_tf));
 }

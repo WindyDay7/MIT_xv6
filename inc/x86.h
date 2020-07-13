@@ -144,7 +144,6 @@ lldt(uint16_t sel)
 static inline void
 ltr(uint16_t sel)
 {
-
 	// load task register
 	asm volatile("ltr %0" : : "r" (sel));
 }
