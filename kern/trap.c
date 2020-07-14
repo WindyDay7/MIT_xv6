@@ -89,6 +89,12 @@ void trap_init(void)
     void th_mchk();
     void th_simderr();
 	void th_syscall();
+	void th_irq_timer();
+    void th_irq_kbd();
+    void th_irq_serial();
+    void th_irq_spurious();
+    void th_irq_ide();
+	void th_irq_error();
 
     SETGATE(idt[T_DIVIDE], 0, GD_KT, &th_divide, 0);
     SETGATE(idt[T_DEBUG], 0, GD_KT, &th_debug, 0);
@@ -110,7 +116,12 @@ void trap_init(void)
     SETGATE(idt[T_SIMDERR], 0, GD_KT, &th_simderr, 0);
 	// 对于系统调用, 原进程是处于用户态
 	SETGATE(idt[T_SYSCALL], 0, GD_KT, &th_syscall, 3);
-
+	SETGATE(idt[IRQ_OFFSET + IRQ_TIMER], 0, GD_KT, &th_irq_timer, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_KBD], 0, GD_KT, &th_irq_kbd, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_SERIAL], 0, GD_KT, &th_irq_serial, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_SPURIOUS], 0, GD_KT, &th_irq_spurious, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_IDE], 0, GD_KT, &th_irq_ide, 0);
+    SETGATE(idt[IRQ_OFFSET + IRQ_ERROR], 0, GD_KT, &th_irq_error, 0);
     // Per-CPU setup 
     trap_init_percpu();
 }
@@ -229,7 +240,7 @@ trap_dispatch(struct Trapframe *tf)
 		monitor(tf);
 		return;
 	}
-
+	
 	if (tf->tf_trapno == T_SYSCALL) {
 		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx,
 			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, tf->tf_regs.reg_esi);

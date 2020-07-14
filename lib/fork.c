@@ -34,6 +34,7 @@ pgfault(struct UTrapframe *utf)
 
 	// LAB 4: Your code here.
     pte_t pte = uvpt[PGNUM(addr)];
+    // envid means current Env
     envid_t envid = sys_getenvid();
 
     if ((err & FEC_WR) == 0 || (pte & PTE_COW) == 0) {
