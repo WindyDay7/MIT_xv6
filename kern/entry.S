@@ -11,12 +11,14 @@
 ###################################################################
 # The kernel (this code) is linked at address ~(KERNBASE + 1 Meg), 
 # but the bootloader loads it at address ~1 Meg.
+# 内核的link 地址是 KERNBASE + 1 MB, 但是 boot loader 将其载入地址为 1MB
 #	
 # RELOC(x) maps a symbol x from its link address to its actual
 # location in physical memory (its load address).	 
 ###################################################################
 
 #define	RELOC(x) ((x) - KERNBASE)
+# 将内核的link 地址转化为物理地址
 
 #define MULTIBOOT_HEADER_MAGIC (0x1BADB002)
 #define MULTIBOOT_HEADER_FLAGS (0)
@@ -39,6 +41,7 @@
 # bootloader to jump to the *physical* address of the entry point.
 .globl		_start
 _start = RELOC(entry)
+# 将 entry 的虚拟地址变成物理地址, entry 本身也是个虚拟地址,
 
 .globl entry
 entry:
@@ -56,7 +59,11 @@ entry:
 	# Load the physical address of entry_pgdir into cr3.  entry_pgdir
 	# is defined in entrypgdir.c.
 	movl	$(RELOC(entry_pgdir)), %eax
+	# 注意此时页目录本身就在物理内存中
+	# 需要注意的是这里, entry_pgdir 只有虚拟地址, 并且他不在 boot loader里面, 而是在内核里面, 对应的虚拟地址是在 0xf0000000 之后
 	movl	%eax, %cr3
+	# 将 页目录的物理地址存入 cr3寄存器
+
 	# Turn on paging.
 	movl	%cr0, %eax
 	orl	$(CR0_PE|CR0_PG|CR0_WP), %eax

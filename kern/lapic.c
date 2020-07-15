@@ -43,6 +43,7 @@
 #define TDCR    (0x03E0/4)   // Timer Divide Configuration
 
 physaddr_t lapicaddr;        // Initialized in mpconfig.c
+// this is a pointer that point to APIC
 volatile uint32_t *lapic;
 
 static void

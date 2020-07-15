@@ -170,7 +170,8 @@ mp_init(void)
 	struct mpproc *proc;
 	uint8_t *p;
 	unsigned int i;
-
+	
+	// BSP is the first cpu
 	bootcpu = &cpus[0];
 	if ((conf = mpconfig(&mp)) == 0)
 		return;

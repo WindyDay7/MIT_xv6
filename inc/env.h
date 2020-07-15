@@ -27,6 +27,7 @@ typedef int32_t envid_t;
 
 #define LOG2NENV		10
 #define NENV			(1 << LOG2NENV)
+// 这一步是取出 envid 的低10, 表示在 env 数组中真正的 ID
 #define ENVX(envid)		((envid) & (NENV - 1))
 
 // Values of env_status in struct Env
@@ -37,6 +38,22 @@ enum {
 	ENV_RUNNING,
 	ENV_NOT_RUNNABLE
 };
+/*
+ENV_FREE: 表示空闲的进程
+	Indicates that the Env structure is inactive, and therefore on the env_free_list.
+ENV_RUNNABLE: 表示可执行的进程, 也就是就绪态
+	Indicates that the Env structure represents an environment that is waiting to run on the processor.
+ENV_RUNNING: 表示正在执行的进程, 运行态
+	Indicates that the Env structure represents the currently running environment.
+ENV_NOT_RUNNABLE: 表示阻塞态
+	Indicates that the Env structure represents a currently active environment, but it is not currently
+	ready to run: for example, because it is waiting for an interprocess communication (IPC) from
+	another environment.
+ENV_DYING:	表示僵尸进程
+	Indicates that the Env structure represents a zombie environment. A zombie environment will be
+	freed the next time it traps to the kernel. We will not use this flag until Lab 4
+*/
+
 
 // Special environment types
 enum EnvType {
