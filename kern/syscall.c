@@ -403,7 +403,6 @@ sys_ipc_recv(void *dstva)
     curenv->env_status = ENV_NOT_RUNNABLE;
     return 0;
 	// panic("sys_ipc_recv not implemented");
-	return 0;
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -426,6 +425,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
         return sys_getenvid();
     case SYS_env_destroy:
         return sys_env_destroy(a1);
+    case SYS_yield:
+		sys_yield(); return 0;
 	case SYS_exofork:
     	return sys_exofork();
 	case SYS_env_set_status:

@@ -38,6 +38,7 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
         }
         return r;
     }
+    // thisenv->env_ipc_from was set while the send Env send the data
     if (from_env_store != NULL) {
         *from_env_store = thisenv->env_ipc_from;
     }

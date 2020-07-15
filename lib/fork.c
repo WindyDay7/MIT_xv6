@@ -146,7 +146,7 @@ fork(void)
         panic("fork: %e", r);
 
     return envid;
-	panic("fork not implemented");
+	// panic("fork not implemented");
 }
 
 // Challenge!
