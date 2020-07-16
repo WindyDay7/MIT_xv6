@@ -155,6 +155,7 @@ mem_init(void)
 	// 假设 UVPT 是页目录开头的虚拟地址, 左边得到的应该是页目录的物理地址
 	// 这一步相当于将页目录的虚拟地址 kern_pgdir 固定在 UVPT, 访问UVPT就是访问页目录, 
 	// 这一步十分重要, 因为在此之前, boot_alloc 只是在虚拟空间上分配了页目录, 物理内存上并没有页目录,
+	// 这一步相当于手动 map 物理页与虚拟地址
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
 	// struct PageInfo *pages 记录了物理页的状态的数组
@@ -170,7 +171,7 @@ mem_init(void)
 	// 物理页描述符的数组, 
 	pages = (struct PageInfo*)boot_alloc(sizeof(struct PageInfo) * npages);
 	memset(pages, 0, sizeof(struct PageInfo) * npages);
-
+	
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
@@ -465,7 +466,7 @@ pte_t * pgdir_walk(pde_t *pgdir, const void *va, int create)
 			}
 		}        
 	}
-		// PTE_ADDR(pgdir[PDX(va)])这一步是根据页表项的内容得到物理地址, 因为页表项的内容存的就是物理地址
+	// PTE_ADDR(pgdir[PDX(va)])这一步是根据页表项的内容得到物理地址, 因为页表项的内容存的就是物理地址与权限
 	// result = page2kva(pa2page(PTE_ADDR(pgdir[PDX(va)])));
 	result = (pte_t *)KADDR(PTE_ADDR(pgdir[PDX(va)])) + PTX(va);
 	return result;

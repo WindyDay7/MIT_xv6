@@ -27,14 +27,15 @@
 // use PGADDR(PDX(la), PTX(la), PGOFF(la)).
 
 // page number field of address
-// 获得物理物理内存中的物理页号 PTXSHIFT = 12, 表示页面大小
+// 获取页表中的页号, 这里就是地址的高20位
 #define PGNUM(la)	(((uintptr_t) (la)) >> PTXSHIFT)
 
 // page directory index
 // 获得页目录的索引
 #define PDX(la)		((((uintptr_t) (la)) >> PDXSHIFT) & 0x3FF)
 
-// 获取页表的索引
+// 获取页表的索引, 这个是在一个二级页表中的索引, 一个二级页表大小是4KB
+// PGNUM 是在整个二级页表中的索引, 所以是高20位, 这里是中间10位
 // page table index
 #define PTX(la)		((((uintptr_t) (la)) >> PTXSHIFT) & 0x3FF)
 

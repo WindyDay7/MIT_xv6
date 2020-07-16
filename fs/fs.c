@@ -60,9 +60,17 @@ alloc_block(void)
 	// The bitmap consists of one or more blocks.  A single bitmap block
 	// contains the in-use bits for BLKBITSIZE blocks.  There are
 	// super->s_nblocks blocks in the disk altogether.
+	int i;
 
+    for (i = 0; i < super->s_nblocks; i++) {
+        if (block_is_free(i)) {
+            bitmap[i / 32] &= ~(1 << (i % 32));
+            flush_block(&bitmap[i / 32]);
+            return i;
+        }
+    }
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+	// panic("alloc_block not implemented");
 	return -E_NO_DISK;
 }
 
@@ -134,8 +142,30 @@ fs_init(void)
 static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-       // LAB 5: Your code here.
-       panic("file_block_walk not implemented");
+	if (filebno >= NDIRECT + NINDIRECT) {
+        return -E_INVAL;
+    }
+    if (filebno < NDIRECT) {
+        *ppdiskbno = &f->f_direct[filebno];
+    }
+	else {
+        if (!f->f_indirect && !alloc) {
+            return -E_NOT_FOUND;
+        }
+        if (!f->f_indirect && alloc) {
+            uint32_t newbno;
+
+            if ((newbno = alloc_block()) < 0) {
+                return -E_NO_DISK;
+            }
+            f->f_indirect = newbno;
+            memset(diskaddr(newbno), 0, BLKSIZE);
+        }
+        *ppdiskbno = &((uint32_t *)diskaddr(f->f_indirect))[filebno - NDIRECT];
+    }
+    // LAB 5: Your code here.
+    // panic("file_block_walk not implemented");
+	return 0;
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -149,8 +179,27 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
-       // LAB 5: Your code here.
-       panic("file_get_block not implemented");
+    // LAB 5: Your code here.
+	uint32_t *pdiskbno;
+    int r;
+
+    if ((r = file_block_walk(f, filebno, &pdiskbno, 1)) != 0) {
+        return r;
+    }
+	
+    if (!*pdiskbno) {
+        uint32_t newbno;
+        if ((newbno = alloc_block()) < 0) {
+            return -E_NO_DISK;
+        }
+        *pdiskbno = newbno;
+        memset(diskaddr(newbno), 0, BLKSIZE);
+    }
+	// *blk = (char *)pdiskbno;
+	// the virtual address of block isn't the same as block's pointer
+    *blk = diskaddr(*pdiskbno);
+    return 0;
+    // panic("file_get_block not implemented");
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.

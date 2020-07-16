@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "console.h": "c"
+        "console.h": "c",
+        "type_traits": "cpp"
     }
 }

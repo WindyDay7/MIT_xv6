@@ -435,6 +435,10 @@ env_create(uint8_t *binary, enum EnvType type)
 	load_icode(new_env, binary);
 	// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
 	// LAB 5: Your code here.
+	// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
+	if (type == ENV_TYPE_FS) {
+    	new_env->env_tf.tf_eflags |= FL_IOPL_MASK;
+	}
 	// 创建一个新的进程
 	
 }
