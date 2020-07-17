@@ -28,9 +28,9 @@ struct FdFile {
 };
 
 struct Fd {
-	int fd_dev_id;
-	off_t fd_offset;
-	int fd_omode;
+	int fd_dev_id; // device ID, 
+	off_t fd_offset;   // offset in the file block
+	int fd_omode;   
 	union {
 		// File server files
 		struct FdFile fd_file;

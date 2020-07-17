@@ -61,6 +61,7 @@ serve_init(void)
 }
 
 // Allocate an open file.
+// 分配一个open file, 首先分配一个 fd
 int
 openfile_alloc(struct OpenFile **o)
 {
@@ -100,8 +101,7 @@ openfile_lookup(envid_t envid, uint32_t fileid, struct OpenFile **po)
 // permissions to return to the calling environment in *pg_store and
 // *perm_store respectively.
 int
-serve_open(envid_t envid, struct Fsreq_open *req,
-	   void **pg_store, int *perm_store)
+serve_open(envid_t envid, struct Fsreq_open *req, void **pg_store, int *perm_store)
 {
 	char path[MAXPATHLEN];
 	struct File *f;
@@ -208,6 +208,7 @@ int
 serve_read(envid_t envid, union Fsipc *ipc)
 {
 	struct Fsreq_read *req = &ipc->read;
+	// new construct for return file
 	struct Fsret_read *ret = &ipc->readRet;
 	struct OpenFile *o;
     int r;
@@ -218,6 +219,7 @@ serve_read(envid_t envid, union Fsipc *ipc)
 	if ((r = openfile_lookup(envid, req->req_fileid, &o)) != 0) {
         return r;
     }
+	// fd_offset is the offset in the file block 
     if ((r = file_read(o->o_file, ret->ret_buf, req->req_n, o->o_fd->fd_offset)) > 0) {
         o->o_fd->fd_offset += r;
     }
@@ -329,6 +331,9 @@ serve(void)
 		}
 
 		pg = NULL;
+		// Open fsreq->req_path in mode fsreq->req_omode, storing the Fd page and
+		// permissions to return to the calling environment in *pg_store and
+		// *perm_store respectively.
 		if (req == FSREQ_OPEN) {
 			r = serve_open(whom, (struct Fsreq_open*)fsreq, &pg, &perm);
 		} else if (req < ARRAY_SIZE(handlers) && handlers[req]) {
@@ -337,6 +342,7 @@ serve(void)
 			cprintf("Invalid request code %d from %08x\n", req, whom);
 			r = -E_INVAL;
 		}
+		// ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
 		ipc_send(whom, r, pg, perm);
 		sys_page_unmap(0, fsreq);
 	}
