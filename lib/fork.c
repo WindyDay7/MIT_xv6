@@ -72,7 +72,12 @@ duppage(envid_t envid, unsigned pn)
 	envid_t parent_envid = sys_getenvid();
     void *va = (void *)(pn * PGSIZE);
 
-    if ((uvpt[pn] & PTE_W) == PTE_W || (uvpt[pn] & PTE_COW) == PTE_COW) {
+    if ((uvpt[pn] & PTE_SHARE) == PTE_SHARE) {
+        if ((r = sys_page_map(parent_envid, va, envid, va, uvpt[pn] & PTE_SYSCALL)) != 0) {
+            panic("duppage: %e", r);
+        }
+    }
+    else if ((uvpt[pn] & PTE_W) == PTE_W || (uvpt[pn] & PTE_COW) == PTE_COW) {
         if ((r = sys_page_map(parent_envid, va, envid, va, PTE_COW | PTE_U | PTE_P)) != 0) {
             panic("duppage: %e", r);
         }
