@@ -12,8 +12,7 @@ diskaddr(uint32_t blockno)
 
 // Is this virtual address mapped?
 // if it was mapped, it means it was in physical memory
-bool
-va_is_mapped(void *va)
+bool va_is_mapped(void *va)
 {
 	return (uvpd[PDX(va)] & PTE_P) && (uvpt[PGNUM(va)] & PTE_P);
 }
